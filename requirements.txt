@@ -8,3 +8,9 @@ emoji
 xgboost
 imbalanced-learn
 nbformat
+torch
+transformers
+tqdm
+tiktoken
+sentencepiece
+protobuf
