@@ -1,0 +1,376 @@
+THAI-MOD: Multilingual Online Toxicity Detection System
+1. Project Overview
+THAI-MOD เป็นระบบ Machine Learning สำหรับตรวจจับข้อความที่เป็นพิษ (toxic / harmful content) บนแพลตฟอร์มออนไลน์ โดยเน้นการรองรับภาษาไทยเป็นหลัก และรองรับ multilingual (Thai–English / code-switching)
+Problem Summary
+แพลตฟอร์มออนไลน์ในประเทศไทยเผชิญกับปริมาณข้อความ toxic จำนวนมาก ขณะที่โมเดลส่วนใหญ่ถูกฝึกจากภาษาอังกฤษ จึงไม่สามารถเข้าใจบริบทภาษาไทย เช่น คำสแลง การประชด หรือการสะกดผิดแบบตั้งใจได้อย่างมีประสิทธิภาพ
+Project Goal
+พัฒนาระบบ prototype สำหรับ:
+Binary classification: Toxic / Non-toxic
+รองรับ real-time inference
+มี logging และ monitoring เบื้องต้น
+ตรวจจับ performance degradation / data drift ระดับพื้นฐาน
+ML Goal หลัก:
+Optimize Recall ของ toxic class เพื่อลด False Negative (หรือ Metrics เพิ่มเติม เช่น F2-score )
+
+2. Dataset & Data Description
+2.1 Data Sources
+Wisesight Sentiment Dataset (Thai) (Wisesight)
+Example data:
+Distribution:
+
+Size: 23545 rows
+
+
+Thai Toxicity Tweet Corpus (SEACrowd/thai_toxicity_tweet)
+Example data:
+Distribution:
+
+Size: 2160 rows
+
+
+HateThaiSent (https://github.com/dsmlr/HateThaiSent/blob/main/HateThaiSent.csv)
+Example data:
+Distribution:
+
+Size: 4953 rows
+
+
+Thai Sentiment Analysis Dataset (PyThaiNLP/thai-sentiment-analysis-dataset)
+Example data:
+Distribution:
+
+Size:: 341 rows
+Thai Cyberbullying LGBT Dataset (https://github.com/tiya1012/thai_cyberbullying_lgbt/blob/main/cleaned_thai_cyberbullying.csv)
+Example data:
+Distribution:
+
+Size: 16,749 rows
+
+
+Jigsaw Toxic Comment Classification Challenge (thesofakillers/jigsaw-toxic-comment-classification-challenge · Datasets at Hugging Face)
+Example data:
+Distribution:
+
+Size: 159,571 rows
+
+
+Hate Speech Dataset for Social Media (Hate Speech Dataset for Social Media | Kaggle)
+Example data:
+Distribution:
+
+Size: 1829 rows
+Hate Speech and Offensive Language Dataset (Hate Speech and Offensive Language Dataset)
+Example data:
+Distribution:
+ 
+Size: 24,783 rows
+
+
+
+
+2.2 Data Type & Size
+1 sample = 1 comment / 1 text message
+Label: toxic / non-toxic (binary)
+ข้อมูลเป็น short text (tweet-style length): 90% ของข้อความมีไม่เกิน 50 tokens
+
+
+
+
+
+
+
+
+
+
+
+
+
+จำนวนข้อมูลรวม (Thai datasets) 47,748 ข้อความ (รวม dataset1-5) :
+
+
+
+2.3 Data Split Strategy
+ใช้ stratified split: 
+Train: 80%
+Test: 20%
+รักษาสัดส่วน class toxic/non-toxic ให้ใกล้เคียงกันในทุกชุด
+
+
+
+
+2.4 Privacy, PDPA, and Ethical Considerations
+1. Data Source & Privacy Compliance (การจัดการข้อมูลส่วนบุคคล)
+โปรเจกต์ดำเนินการตามหลักการ Data Minimization (เก็บข้อมูลเท่าที่จำเป็น) เพื่อป้องกันการละเมิดสิทธิส่วนบุคคล:
+Public & Academic Datasets: ใช้ข้อมูลที่เปิดเผยต่อสาธารณะอยู่แล้ว (Wisesight, ThaiToxicity, HateThaiSent ฯลฯ) 
+No PII (Personally Identifiable Information): ชุดข้อมูลไม่มีการเก็บข้อมูลจริงจากผู้ใช้ ชื่อจริง, เบอร์โทรศัพท์, ที่อยู่ หรือเลขบัตรประชาชน
+Anonymization: ข้อมูลถูกตัด User Metadata ออกทั้งหมด (ไม่มี User ID, Timestamp หรือ Location) คงเหลือเพียงข้อความ (Text) และป้ายกำกับ (Label) ทำให้ไม่สามารถระบุตัวตนย้อนกลับไปยังเจ้าของข้อความได้ 
+2. Risk Mitigation Strategies (แนวทางลดความเสี่ยง)
+เรากำหนดมาตรการเพื่อลดผลกระทบต่อผู้ใช้งานและสังคม ดังนี้:
+Project นี้ ใช้เฉพาะ publicly available datasets ที่ถูก release อย่างถูกต้องตามกฎหมาย:
+No Production Logging: ระบบถูกออกแบบมาให้ประมวลผลแบบ Real-time (Inference) โดยไม่มีการบันทึกข้อความจากผู้ใช้งานจริงลงฐานข้อมูลถาวร
+Human-in-the-Loop (HITL): ระบบทำหน้าที่เป็น Decision-Support System คือเป็นแค่เครื่องมือช่วยตัดสินใจ ต้องให้ human review final decision อีกที ไม่ใช่ Automated Decision-Making 
+3. Error Impact Analysis (การวิเคราะห์ผลกระทบหากทำนายผิด)
+ประเภทความผิดพลาด
+นิยาม
+ผลกระทบ (Impact)
+ระดับความรุนแรง
+False Negative (FN)
+Toxic แต่ระบบบอกว่า Safe
+ข้อความ Hate Speech หรือการ Bullying หลุดรอดสู่สาธารณะ ส่งผลเสียต่อจิตใจเหยื่อและความน่าเชื่อถือของ Platform
+High
+False Positive (FP)
+Safe แต่ระบบบอกว่า Toxic
+ผู้ใช้งานที่สุภาพถูก Flag หรือ Block โดยไม่เป็นธรรม กระทบต่อประสบการณ์การใช้งาน (UX) และเสรีภาพในการแสดงออก
+Medium
+
+
+ดังนั้นระบบถูกออกแบบให้:
+Recall-Oriented Optimization เลือก Optimize ค่า Recall (Sensitivity) ใน Class "Toxic" ให้สูงที่สุด เพื่อปิดโอกาสไม่ให้ข้อความที่เป็นอันตรายหลุดรอด (Minimize FN) แม้จะต้องยอมรับอัตรา False Positive ที่เพิ่มขึ้นเล็กน้อย แต่ดีกว่าปล่อย toxic ผ่าน
+ใช้ human-in-the-loop ในกรณี confidence ต่ำ เมื่อ model มี confidence ต่ำ ระบบจะไม่ตัดสินใจเอง แต่ส่งให้ human review โดยเฉาพะภาษาไทยที่มี ambiguity สูง (เช่น คำสแลง, banter ระหว่างเพื่อน)
+
+3. Data Engineering & Training Data Considerations
+3.1 Data Preparation
+Handling Missing Data: ลบ row ข้อมูลที่มีค่า NaN หรือข้อความว่างใน column texts และ category
+Text Cleaning & Normalization: ลบ URL, แปลง emoji เป็นข้อความ และแปลงตัวอักษรภาษาอังกฤษเป็น lowercase 
+Tokenization: ใช้ PyThaiNLP สำหรับตัดคำภาษาไทยใน model 
+Data De-duplication: ลบข้อมูลข้อความซ้ำโดยอิงจาก column texts เพื่อป้องกัน bias และ data leakage
+Label Mapping: แปลง label เป็น binary class โดยกำหนด neg เป็น toxic (1) และ pos, neu เป็น non-toxic (0)
+3.2 Class Imbalance
+จากการวิเคราะห์ data พบว่า class  toxic มีจำนวนน้อยกว่า non-toxic ซึ่งอาจทำให้ model เอนเอียงไปทาง class ส่วนใหญ่และมี Recall ต่ำใน class toxic
+แนวทางจัดการ:
+Classical Models: ใช้ class_weight='balanced', ทดลอง Oversampling (RandomOverSampler) ในชุด train และปรับ Threshold เพื่อลด False Negative และเพิ่ม Recall
+Evaluation Metric: อาจพิจารณาใช้ F2-score เป็น metric หลัก เพราะให้ความสำคัญกับ Recall มากกว่า Precision สอดคล้องกับเป้าหมายในการลดข้อความ Toxic
+
+
+3.3 Label Source & Label Noise
+Label Source: ใช้ Public Datasets ที่มีการ annotation โดยมนุษย์จาก Social Media และแปลง label เป็น binary โดยจัด negative sentiment เป็น toxic (1) และ positive/neutral เป็น non-toxic (0)
+Label Noise: เนื่องจากเป็น annotation โดยมนุษย์ จึงอาจมีความคลาดเคลื่อนจากการตีความ เช่น ข้อความประชดประชันหรือข้อความที่กำกวม
+Mitigation & Validation: วิเคราะห์ความผิดพลาดด้วย confusion matrix, ใช้ F2-score และ recall แทน accuracy และเปรียบเทียบผลระหว่าง Classical ML และ BERT
+3.4 Key Assumptions
+ปริมาณข้อมูลที่มีเพียงพอสำหรับการพัฒนาและประเมิน model ในระดับ prototype
+การจัดเป็น binary classification (toxic vs non-toxic) เหมาะสมกับขอบเขตและระยะเวลาในการพัฒนา 2–3 เดือน
+Language drift ในช่วงระยะเวลาการทดลองไม่ส่งผลกระทบอย่างมีนัยสำคัญต่อประสิทธิภาพของ model
+
+
+4. Feature Engineering Plan
+4.1 Baseline Features (Engineered)
+TF-IDF (unigram + bigram)
+สกัดความสำคัญของคำและกลุ่มคำ 2 คำ เพื่อให้โมเดลสามารถดักจับกลุ่มคำหยาบหรือวลีที่มักปรากฏร่วมกันได้ดีกว่าการมองแค่คำเดี่ยว
+Text length
+นำจำนวน Token มาเป็นฟีเจอร์เสริม เนื่องจากข้อความ Toxic มักมีความยาวที่แตกต่างจากข้อความทั่วไป (เช่น สั้นแต่รุนแรง หรือยาวแบบรัวคำด่า)
+Keyword-based toxicity indicator
+การวิเคราะห์ความถี่ของคำเพื่อระบุจุดเน้นของข้อความ
+เหตุผล:
+ช่วยให้เข้าใจได้ง่ายว่าคำไหนมีผลต่อการทำนายมากที่สุด
+ใช้เป็น reference baseline ที่ชัดเจนสำหรับการเปรียบเทียบกับโมเดลที่ซับซ้อนกว่า
+4.2 Learned Features
+Transformer embeddings (Thai-BERT / Multilingual BERT)
+สกัดเวกเตอร์ความหมายของคำที่แฝงไปด้วยบริบท โดยคำเดียวกันจะมีความหมายต่างกันตามบริบทของประโยค
+Contextual representation
+เรียนรู้ความสัมพันธ์ของคำทั้งจากหน้าไปหลังและหลังมาหน้า ช่วยให้เข้าใจการประชดประชัน และคำสแลงเฉพาะกลุ่มได้ลึกซึ้ง
+Multilingual Mapping
+รองรับการเขียนแบบไทยคำอังกฤษคำ ได้อย่างมีประสิทธิภาพกว่าโมเดลแบบเดิม
+
+เหตุผล:
+เข้าใจบริบทไทยได้ดีกว่า: BERT สามารถจัดการกับปัญหาการไม่มีช่องว่างระหว่างคำในภาษาไทยได้ดี 
+รองรับสถาปัตยกรรมระดับลึก: ทำให้เรียนรู้ patterns ข้อความที่ซับซ้อนได้โดยไม่ต้องสกัดฟีเจอร์เอง
+4.3 Feature ที่ไม่ใช้
+User profile metadata
+ไม่นำข้อมูลส่วนตัวของผู้ใช้ (ชื่อ, อายุ, ประวัติ) มาวิเคราะห์ เพื่อลดอคติและป้องกันประเด็นจริยธรรม
+Timestamp-based feature
+ข้อมูลเวลาอาจทำให้โมเดล Overfit กับเหตุการณ์ปัจจุบันมากเกินไป
+External knowledge graph
+เนื่องจากต้องการให้ระบบทำ Inference ได้รวดเร็วในระดับ Real-time การดึงข้อมูลภายนอกจะเพิ่ม Latency	
+เหตุผล:
+ลด privacy risk: สอดคล้องกับมาตรการ PDPA 
+ลด scope complexity: เน้นให้โมเดลตัดสินจากข้อความ เป็นหลักเพื่อความเป็นธรรม 
+5. Baseline Model
+Model: TF-IDF + Logistic Regression (Class Weight Balanced)
+เหตุผลที่เลือก
+เป็น linear baseline มาตรฐาน ที่ใช้กันแพร่หลายในงาน text classification
+โครงสร้างเรียบง่าย เหมาะใช้เป็นจุดอ้างอิงในการเปรียบเทียบ model อื่น
+รองรับปัญหา class imbalance ได้โดยตรง ผ่าน class_weight='balanced'
+Baseline Results (Initial Experiment)
+Metric
+Value
+Accuracy
+0.828707
+Precision
+0.641969
+Recall
+0.775830
+F1-Score
+0.702580
+F2-Score
+0.744770
+
+Observation:
+model ยังไม่ดีพอในการตรวจจับข้อความ toxic จึงใช้เป็นจุดตั้งต้นและตัวเปรียบเทียบสำหรับการพัฒนา model ที่มีประสิทธิภาพมากขึ้น
+
+
+6. Candidate Models
+6.1 Model A: WangchanBERTa
+เหตุผลที่เลือก
+model ภาษาไทยที่ train จากข้อมูล Social Media เป็นหลัก จึงเหมาะกับภาษาที่ไม่เป็นทางการ คำสแลง และข้อความเชิง toxic
+รองรับโครงสร้างภาษาไทยได้ดีผ่าน SentencePiece tokenizer
+แตกต่างจาก baseline
+ใช้ deep contextual embeddings แทน feature-based representation (TF-IDF)
+เรียนรู้ความหมายของข้อความจากบริบททั้งประโยคโดยตรง โดยไม่ต้องออกแบบ feature เอง
+6.2 Model B: XLM-RoBERTa
+เหตุผลที่เลือก
+รองรับหลายภาษา เหมาะกับข้อความที่มีการปนภาษาไทย–อังกฤษ (code-switching) ซึ่งพบได้บ่อยใน social media
+ใช้สถาปัตยกรรม RoBERTa ที่ให้ result เสถียรในงาน text classification
+แตกต่างจาก baseline
+ใช้ Transformer-based multilingual model แทน linear classifier
+สามารถเรียนรู้บริบทข้ามภาษาได้โดยตรง
+6.3 Model C: PhayaThaiBERT
+เหตุผลที่เลือก
+model ภาษาไทยสมัยใหม่ที่ train จากชุดข้อมูลขนาดใหญ่
+ใช้เป็นตัวเปรียบเทียบกับ WangchanBERTa เพื่อประเมินประสิทธิภาพของ Thai-specific models
+แตกต่างจาก baseline
+ใช้ pre-trained Transformer สำหรับภาษาไทย แทน TF-IDF features
+เรียนรู้ semantic และบริบทของภาษาไทยได้ลึกกว่า model เชิงสถิติ
+6.4 Model E: Linear Support Vector Classifier (Linear SVC)
+เหตุผลที่เลือก
+เป็นโมเดล linear ที่ดีสำหรับงาน high-dimensional sparse features (เช่น TF-IDF)
+มักให้ performance สูงกว่า Logistic Regression ในบาง dataset
+เหมาะกับข้อมูลที่มี class imbalance
+
+
+แตกต่างจาก Baseline
+ใช้ max-margin optimization แทน probability-based optimization
+ไม่พึ่งพาการประมาณความน่าจะเป็นแบบ Logistic Regression
+
+
+จุดประสงค์ในการทดลอง
+ใช้เปรียบเทียบกับ Logistic Regression ว่า margin-based classifier จะให้ผลดีกว่าหรือไม่
+
+7. Experiment Setup
+ใช้ data split เดียวกัน
+ใช้ preprocessing pipeline เดียวกัน
+ใช้ evaluation metric เดียวกัน
+การแก้ปัญหาค่า Recall 
+การจัดการข้อมูลที่ไม่สมดุล โดยใช้ class_weight = ‘balanced’
+เทคนิคการสุ่มตัวอย่างใหม่ โดยใช้ RandomOverSampler
+การปรับจูนค่าความต่างตอบแทนระหว่าง Precision และ Recallผ่านการปรับค่า Thereshold
+Hyperparameter Strategy
+Baseline:
+Tune hyperparameter ขนาดต่าง ๆ เพื่อเปรียบเทียบ
+Traditional ML:
+Tune hyperparameter ขนาดต่าง ๆ เพื่อเปรียบเทียบ
+Transformer:
+Learning rate (2e-5 – 5e-5) ต่าง ๆ
+Batch size ขนาดต่าง ๆ
+Epoch (5-10)
+ผลลัพธ์:
+
+
+
+
+
+
+8. Offline Evaluation & Results
+Primary Metric
+Recall (Toxic Class)
+Secondary Metrics
+Accuracy
+F1-score
+Comparison Table
+
+Model
+Accuracy
+Precision
+Recall
+F1-Score
+WangchanBERTa
+0.8908
+0.7997
+0.7752
+0.7873
+PhayaThaiBERT
+0.8891
+0.804
+0.7602
+0.7815
+XLM-RoBERTa
+0.8646
+0.7751
+0.6775
+0.723
+Linear SVC (Balanced)
+0.84
+0.78
+0.8
+0.79
+Logistic Regression (Balanced)
+0.83
+0.78
+0.81
+0.79
+Linear SVC (Oversampled)
+0.83
+0.79
+0.79
+0.79
+LogReg (Threshold 0.3)
+0.82
+0.77
+0.81
+0.78
+LogReg (Threshold 0.4)
+0.84
+0.79
+0.79
+0.79
+LogReg (Threshold 0.5)
+0.84
+0.81
+0.74
+0.76
+
+
+Conclusion: Transformer models ให้ผลลัพธ์ที่ดีกว่า baseline และ Traditional model อย่างมีนัยสำคัญ
+
+
+
+
+9. Analysis & Model Selection
+9.1 ผลการเปรียบเทียบโมเดล
+WangchanBERTa
+ให้ค่า Accuracy สูงสุด (0.8908) และ F1-score สูง
+ประสิทธิภาพโดยรวมดีที่สุดในทุกโมเดลที่ทดสอบ
+PhayaThaiBERT
+ให้ค่า Accuracy ใกล้เคียงกับ WangchanBERTa
+Precision สูง แต่ Recall ต่ำกว่าเล็กน้อย
+XLM-RoBERTa
+ประสิทธิภาพต่ำกว่า Transformer ภาษาไทย
+โดยเฉพาะค่า Recall ของคลาส Toxic
+Logistic Regression (Balanced)
+ให้ค่า Recall ของคลาส Toxic สูงสุด (0.81)
+Accuracy ต่ำกว่าโมเดล Transformer
+Linear SVC (Balanced)
+ให้ค่า Recall และ F1-score อยู่ในระดับดี
+ผลลัพธ์โดยรวมต่ำกว่า Logistic Regression เล็กน้อย
+
+
+9.2 การวิเคราะห์ผลลัพธ์
+โมเดล Transformer สามารถเรียนรู้บริบทของข้อความได้ เหมาะกับภาษาไทยที่มีคำสแลงและการใช้ภาษาเชิงบริบท
+WangchanBERTa ทำได้ดีที่สุด เนื่องจากถูกฝึกจากข้อมูลภาษาไทยในโดเมนโซเชียลมีเดีย
+XLM-RoBERTa เป็นโมเดล multilingual จึงไม่สามารถจับรายละเอียดเฉพาะของภาษาไทยได้ดีเท่าโมเดลเฉพาะทาง
+โมเดล Traditional Machine Learningใช้ TF-IDF จึงไวต่อคำหรือวลีที่เป็น Toxic โดยตรง
+การตั้งค่า class weight แบบ balanced ช่วยเพิ่มค่า Recall
+มีข้อดีด้านความเร็วและการใช้ทรัพยากรต่ำ
+
+
+
+
+9.3 การเลือกโมเดล
+1. WangchanBERTa (Main Model)
+เลือกเป็นโมเดลหลัก เนื่องจากให้ประสิทธิภาพโดยรวมดีที่สุด
+เหมาะสมกับข้อมูลภาษาไทยในบริบทโซเชียลมีเดีย
+2. Logistic Regression (Balanced)
+เลือกเป็นโมเดลเสริมที่เน้น Recall สูง
+เหมาะสำหรับการใช้งานที่ต้องการความรวดเร็วหรือทรัพยากรจำกัด
+3. PhayaThaiBERT
+เลือกเป็นโมเดลสำรองในกลุ่ม Transformer
+สามารถใช้สำหรับการเปรียบเทียบหรือพัฒนาเป็น ensemble ในอนาคต

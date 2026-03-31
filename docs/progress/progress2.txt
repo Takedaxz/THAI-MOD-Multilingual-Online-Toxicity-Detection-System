@@ -1,0 +1,378 @@
+Progress Report 2
+Project: THAI-MOD – Multilingual Online Toxicity Detection System
+1. ภาพรวมโครงการ (Project Overview)
+1.1 บริบทของปัญหา (Problem Context)
+แพลตฟอร์มออนไลน์ในปัจจุบันต้องเผชิญกับความท้าทายในการจัดการเนื้อหาที่เป็นพิษ (toxic content) หรือเนื้อหาที่ไม่เหมาะสมจากผู้ใช้งาน เช่น hate speech, harassment และ abusive language ซึ่งเนื้อหาเหล่านี้สามารถส่งผลกระทบต่อความปลอดภัยของผู้ใช้งานและบรรยากาศของชุมชนออนไลน์ได้อย่างมีนัยสำคัญ
+การตรวจสอบเนื้อหาแบบ manual โดยมนุษย์เพียงอย่างเดียวมีต้นทุนสูงและไม่สามารถขยายขนาดได้ดีเมื่อจำนวนผู้ใช้งานเพิ่มขึ้น
+โครงการนี้จึงมีเป้าหมายในการพัฒนาระบบ Machine Learning สำหรับตรวจจับข้อความที่เป็นพิษโดยอัตโนมัติในสภาพแวดล้อมที่มีหลายภาษา (multilingual) โดยเน้นข้อความภาษาไทยและภาษาอังกฤษซึ่งพบได้บ่อยใน social media
+
+1.2 กลุ่มผู้ใช้งานและ Use Case (Target Users and Use Cases)
+กลุ่มผู้ใช้งานหลักของระบบ ได้แก่
+ผู้ดูแลระบบ (Moderators)
+ผู้ดูแลแพลตฟอร์มออนไลน์
+ทีมบริหารชุมชนออนไลน์ (Community Management)
+ตัวอย่าง use case ของระบบ
+ผู้ใช้โพสต์ข้อความ
+→ ระบบประเมินระดับความเป็นพิษของข้อความ
+→ ระบบทำการ flag ข้อความที่มีความเสี่ยง
+→ ผู้ดูแลระบบตรวจสอบข้อความที่ถูก flag
+
+ระบบนี้ถูกออกแบบให้เป็น decision-support system ที่ช่วยสนับสนุนการตัดสินใจของมนุษย์ ไม่ได้แทนที่การตัดสินใจของผู้ดูแลโดยตรง
+
+1.3 ประเภทของปัญหา Machine Learning (Machine Learning Problem)
+ปัญหานี้ถูกกำหนดให้เป็น Binary Text Classification
+Input
+ข้อความจากผู้ใช้งาน (User comment)
+Output
+Toxic (1)
+Non-toxic (0)
+
+1.4 ภาพรวมของ Dataset (Dataset Overview) 
+ระบบใช้ข้อมูลจากหลาย dataset เพื่อเพิ่มความหลากหลายของภาษาและบริบทของข้อความ
+ตัวอย่าง dataset ที่ใช้ ได้แก่
+Dataset
+ประเภทข้อมูล
+ภาษา
+Wisesight
+Sentiment
+ไทย
+Thai Toxicity Tweet Corpus
+Toxicity
+ไทย
+HateThaiSent
+Hate Speech
+ไทย
+Thai Sentiment Analysis
+Sentiment
+ไทย
+Thai Cyberbullying LGBT
+Hate Speech
+ไทย
+Jigsaw Toxic Comment
+Toxicity
+อังกฤษ
+Hate Speech for Social Media
+Hate Speech
+อังกฤษ
+Hate Speech and Offensive Language
+Hate Speech
+อังกฤษ
+
+หลังจากรวม dataset ทั้งหมดแล้ว ระบบมีข้อมูลระดับ 233,931 rows จากหลายแหล่งข้อมูล
+
+1.5 แนวทางและโมเดลที่ใช้ (Model Approach)
+โครงการนี้ทดลองใช้ทั้งโมเดลแบบ traditional machine learning และ transformer-based models
+Traditional models
+TF-IDF + Logistic Regression
+Linear SVC
+Transformer models
+WangchanBERTa
+XLM-RoBERTa
+PhayaThaiBERT
+
+1.6 ผลลัพธ์เบื้องต้น (Preliminary Results)
+ผลการทดลองเบื้องต้นพบว่า
+Traditional models มีค่า recall ที่แข่งขันได้ดี
+Transformer models สามารถเข้าใจบริบทของภาษาได้ดีกว่า
+ตัวอย่างผลลัพธ์
+Model
+Recall (Toxic)
+F1
+Linear SVC
+0.81
+0.79
+Logistic Regression
+0.79
+0.79
+WangchanBERTa
+0.775
+0.785
+
+ในโครงการนี้ได้เลือก WangchanBERTa เป็นโมเดลหลัก เนื่องจาก
+เข้าใจบริบทของภาษาไทยได้ดี
+รองรับหลายภาษา
+มีความสามารถในการจัดการข้อความที่ซับซ้อน
+
+
+
+
+
+
+
+
+
+2. สถาปัตยกรรมของระบบ ML และการออกแบบ Pipeline
+2.1 System Overview Diagram
+
+
+
+
+คำอธิบายองค์ประกอบของระบบ
+Component
+หน้าที่
+เครื่องมือ/เทคนิคที่ใช้
+Data Sources
+แหล่งข้อมูลจาก 8 datasets หลัก รวม ~233k samples หลัง dedup
+CSV files, Git LFS
+Data Processing
+ทำความสะอาดข้อมูล, tokenize, map labels เป็น binary (toxic=1, non-toxic=0)
+pandas, PyThaiNLP (newmm engine), emoji library, regex
+Training Pipeline
+ฝึกและเปรียบเทียบโมเดลทั้ง traditional ML และ transformers
+scikit-learn, PyTorch, Hugging Face Transformers, imbalanced-learn
+Model Registry
+จัดเก็บ model artifacts ที่ผ่านการ train แล้ว
+Local filesystem (models/ directory)
+Inference Service
+รับ comment จากผู้ใช้ → preprocess → predict ค่า toxicity
+WangchanBERTa (selected model)
+Monitoring System
+ติดตาม performance ของโมเดล, ตรวจจับ data drift
+Metrics tracking, retrain triggers
+
+2.2 Training และ Inference Pipeline
+Training Pipeline
+1. Dataset Aggregation
+รวม 8 datasets 
+Deduplicate ด้วย drop_duplicates(subset=['texts'])
+Class distribution: Non-toxic 73.9% / Toxic 26.1%
+
+
+2. Text Preprocessing
+Remove URLs ด้วย regex
+Normalize emojis เป็น text description ด้วย emoji.demojize()
+Lowercase เฉพาะ English characters (Thai คงเดิม)
+Map labels: pos → neu, จากนั้น binary mapping neg=1 (toxic), neu=0 (non-toxic)
+3. Feature Extraction — 2 เส้นทาง
+Traditional ML: CountVectorizer (tokenizer=PyThaiNLP word_tokenize, ngram 1-2) → TfidfTransformer
+Transformer: BERT tokenizer ของแต่ละโมเดล (max_length ปรับตาม device: CUDA=128, MPS=96, CPU=64)
+4. Model Training
+Train/Test split: 80/20 stratified (random_state=42)
+Traditional ML ใช้ scikit-learn Pipeline
+Transformer ใช้ PyTorch + Hugging Face: AdamW optimizer, linear warmup scheduler, gradient clipping (max_norm=1.0), 3 epochs
+Recall improvement techniques: class weighting, oversampling, threshold tuning
+5. Evaluation
+Primary metric: Recall (toxic class) — เพราะ false negative มีผลกระทบสูง (ปล่อยข้อความ toxic หลุด)
+ผลลัพธ์: WangchanBERTa ชนะด้วย accuracy 0.891, F1 0.787 | Traditional ML (LinearSVC) อยู่ที่ accuracy 0.93, F1 0.79
+
+Inference Pipeline
+1. Text Preprocessing (เหมือน training pipeline)
+ทำความสะอาดข้อความเดียวกัน: remove URLs, normalize emojis, lowercase English
+ต้องใช้ preprocessing เดียวกันกับตอน train เพื่อป้องกัน train-serve skew
+2. Model Prediction
+Tokenize ด้วย WangchanBERTa tokenizer (CamembertTokenizer)
+Forward pass ผ่านโมเดล → ได้ logits
+Softmax แปลงเป็น probability ของ class toxic (0-1)
+3. Output & Decision
+เปรียบเทียบ toxicity score กับ threshold (default 0.5, ปรับลงเป็น 0.3-0.4 เพื่อเพิ่ม recall)
+ถ้าเกิน threshold → flag ข้อความส่ง moderator ตรวจสอบ
+ระบบเป็น decision-support — ไม่ได้ลบ/บล็อกอัตโนมัติ แต่ช่วย moderator ตัดสินใจ
+
+
+3. การออกแบบ Training และ Evaluation
+3.1 การแบ่งข้อมูล (Data Splitting Strategy)
+Dataset ถูกแบ่งออกเป็นสองส่วน
+Dataset Split
+Percentage
+Training
+80%
+Test
+20%
+
+Training set ใช้สำหรับฝึกโมเดลให้เรียนรู้ pattern ของข้อมูล เช่น รูปแบบของข้อความที่มีลักษณะ toxic และ non-toxic
+Test set ใช้สำหรับประเมินผลสุดท้ายของโมเดลกับข้อมูลที่โมเดลไม่เคยเห็นมาก่อน เพื่อวัดความสามารถในการ generalize
+การแบ่งข้อมูลดำเนินการโดยใช้ฟังก์ชัน train_test_split() พร้อมกำหนด random_state เพื่อให้สามารถทำการทดลองซ้ำได้ และใช้ Stratified Sampling ในการแบ่งข้อมูล
+Dataset ที่ใช้มี class imbalance ระหว่างข้อความที่เป็น toxic และ non-toxic ดังนั้นหากใช้การสุ่มแบบปกติ อาจเกิดกรณีที่บาง split มี toxic comments น้อยเกินไป ส่งผลให้โมเดลไม่สามารถเรียนรู้ pattern ของ toxic content ได้อย่างเพียงพอ และทำให้การประเมินผลคลาดเคลื่อน
+ดังนั้นจึงใช้ stratify = y 
+	เพื่อให้ training set และ test set มีสัดส่วนของแต่ละ class ใกล้เคียงกับ dataset เดิม ซึ่งช่วยให้โมเดลถูกฝึกและประเมินผลใน distribution ของข้อมูลที่สมจริงมากขึ้น
+
+3.2 Evaluation Metrics
+เนื่องจาก false negative มีผลกระทบสูงต่อ moderation system
+จึงให้ความสำคัญกับ recall
+Primary metrics
+Recall (toxic class) Recall ใช้วัดความสามารถของโมเดลในการตรวจจับ toxic comment
+ค่า recall ที่สูงหมายความว่าโมเดลสามารถตรวจจับ toxic content ได้มาก และลดโอกาสที่ toxic comment จะหลุดรอดไปยังผู้ใช้
+Secondary metrics
+F2-score (Primary Supporting Metric) เป็น metric ที่ให้ความสำคัญกับ Recall มากกว่า Precision (โดยให้น้ำหนัก Recall มากกว่า 2 เท่า) ซึ่งเหมาะกับปัญหา toxic comment detection ที่ false negative (ปล่อย toxic หลุด) มีผลกระทบสูง ในการ training ของโมเดล โดยเฉพาะ BERT-based models จะใช้ Macro F2-score เพื่อประเมิน performance ในแต่ละ epoch เนื่องจากช่วยให้เห็น performance ของแต่ละ class อย่างสมดุล สำหรับการประเมินผลสุดท้าย (final evaluation) จะรายงาน Weighted F2-score เพื่อสะท้อน performance โดยรวมของระบบ โดยคำนึงถึง class imbalance
+Accuracy วัดความถูกต้องโดยรวมของโมเดล อย่างไรก็ตาม ในกรณีที่ dataset มี class imbalance ค่า accuracy อาจไม่สะท้อน performance จริงของโมเดล จึงใช้เป็น metric ประกอบเท่านั้น
+Precision วัดว่าข้อความที่โมเดลทำนายว่า toxic มีความถูกต้องมากน้อยเพียงใด หาก precision ต่ำเกินไปอาจทำให้ข้อความปกติถูก flag ผิดจำนวนมาก
+3.3 Threshold Tuning
+มีการปรับ threshold ของ model prediction เพื่อเพิ่ม recall สำหรับ toxic comments
+แนวคิดคือ
+หาก ลด threshold
+โมเดลจะมีแนวโน้มทำนายว่า toxic มากขึ้น
+ส่งผลให้ Recall เพิ่มขึ้น แต่ Precision อาจลดลง
+แล้วเปรียบเทียบ performance ของแต่ละ threshold โดยพิจารณา Recall เป็นหลัก และดู Precision และ F1-score ประกอบ เพื่อเลือก threshold ที่สามารถตรวจจับ toxic comments ได้มากขึ้น โดยยังไม่ทำให้เกิด False Positive มากเกินไป
+
+3.4 เหตุผลในการเลือกโมเดล (Model Selection)
+ในงานนี้มีการทดลองโมเดลสองกลุ่ม ได้แก่
+1. Traditional Machine Learning Models เช่น
+Naive Bayes
+Logistic Regression
+Linear SVM
+Random Forest
+XGBoost
+โมเดลเหล่านี้ใช้ TF-IDF features ซึ่งอาศัยการนับคำหรือ n-grams เป็นหลัก ทำให้สามารถทำงานได้ดีในบางกรณี และมีค่า recall สูงในบางโมเดล อย่างไรก็ตาม วิธีนี้มีข้อจำกัดสำคัญคือ ไม่สามารถเข้าใจบริบทของประโยคได้
+2. Transformer Models เช่น
+WangchanBERTa
+XLM-RoBERTa
+PhayaThaiBERT
+โมเดลประเภท transformer ใช้ self-attention mechanism ซึ่งช่วยให้โมเดลสามารถพิจารณาความสัมพันธ์ของคำทั้งประโยค และเข้าใจบริบทของภาษาได้ดีกว่า
+เหตุผลที่เลือก WangchanBERTa
+แม้ traditional models จะมีค่า recall ที่สูงกว่าในบางกรณี แต่ WangchanBERTa ถูกเลือกเป็นโมเดลหลัก เนื่องจาก
+1. เข้าใจบริบทภาษาไทยได้ดี
+	WangchanBERTa ถูก pre-train บน corpus ภาษาไทยจำนวนมาก เช่น Wikipedia และข้อความจาก social media ทำให้สามารถเข้าใจโครงสร้างและบริบทของภาษาไทยได้ดี
+2. รองรับข้อความหลายภาษา
+	ข้อความใน social media มักมีการ code-switching เช่น "โคตร toxic เลย report มันไป" โมเดลสามารถเข้าใจคำภาษาไทยและภาษาอังกฤษในประโยคเดียวกันได้
+3. จัดการรูปแบบภาษาที่ซับซ้อนได้ดีกว่า เช่น
+คำแสลง เช่น "โคตรแย่", "แม่ง toxic มาก"
+การสะกดผิด เช่น "ไอสัส", "ไอ้สั้ต"
+การใช้ emoji
+sarcasm หรือการประชด
+ซึ่งเป็นลักษณะที่พบได้บ่อยในข้อความบน social media
+
+ด้วยเหตุผลเหล่านี้ WangchanBERTa จึงมีความเหมาะสมที่สุด
+4. ML Lifecycle และ Error Analysis
+4.1 ML Lifecycle Overview
+
+เริ่มจากการรวบรวมข้อมูล, การ train model , evaluation, การนำไปใช้งานจริง, การติดตามผล และการupdate model รอบถัดไป โดยข้อมูลมาจาก Wisesight, Thai Toxicity Tweet Corpus และ HateThaiSent เพื่อสร้างชุดข้อมูลสำหรับจำแนกข้อความเป็น toxic และ non-toxic จากนั้นนำข้อมูลไป train model, ประเมินผลโดยเน้นการตรวจจับข้อความ toxic แล้วใช้ model ช่วยคัดกรองข้อความเสี่ยงเพื่อส่งต่อให้ moderator ตรวจสอบ เมื่อระบบทำงานต่อเนื่อง ข้อมูลใหม่และผลลัพธ์ที่เกิดขึ้นจะถูกนำกลับมาใช้ในการ retrain เพื่อเพิ่มประสิทธิภาพของ model
+
+
+
+4.2 ขั้นตอนที่ยังเป็น Manual
+ในปัจจุบัน ระบบยังพึ่งพาการทำงานแบบ manual ในหลายส่วนของ pipeline ดังนี้
+Data preparation : ข้อมูลจากหลายแหล่งยังต้องนำมารวม จัดรูปแบบ และปรับ label ก่อนนำไป train
+Model training : การ run model ยัง run บน notebook และต้อง run แยกเพื่อเปรียบเทียบผลลัพธ์ของแต่ละ model
+Threshold adjustment : การกำหนด threshold สำหรับงาน moderation ยังใช้การปรับและตรวจด้วยตนเอง
+Retraining decision : การตัดสินใจ update model ยังขึ้นอยู่กับการตรวจสอบ performance และลักษณะข้อมูลใหม่ด้วยตนเอง
+
+4.3 กลยุทธ์การ Retrain โมเดล
+การ retrain model อิงจาก 2 ปัจจัยหลัก คือ
+Performance drop : หากความสามารถในการตรวจจับข้อความ toxic ลดลง แสดงว่า model เริ่มไม่เหมาะกับข้อมูลจริง
+Data drift : หากข้อความใหม่มีรูปแบบแตกต่างจากข้อมูลเดิม เช่น คำแสลงใหม่ การสะกดเลี่ยงคำหยาบ การใช้ emoji หรือการผสมภาษาไทย–อังกฤษมากขึ้น model เดิมอาจทำนายได้แย่ลง
+
+4.4 Error Analysis
+เพื่อทำความเข้าใจข้อผิดพลาดของ model ได้วิเคราะห์ confusion matrix ของ model กลุ่ม BERT และตรวจสอบตัวอย่างข้อความที่ทำนายผิด
+
+
+
+จาก confusion matrix พบว่า model ทั้ง 3 สามารถจำแนกข้อความ non-toxic ได้ค่อนข้างแม่นยำ แต่ยังมีข้อผิดพลาดใน 2 กรณีหลัก คือ false negatives และ false positives
+False negatives เกิดขึ้นเมื่อข้อความที่เป็น toxic ถูกทำนายเป็น non-toxic ตัวอย่างเช่น
+“เพื่อนชาวพม่าจะเข้ามาทำไม ประเทศไทยจะไม่เหลืออะไรเเล้ว”
+ข้อความลักษณะนี้ไม่ได้ใช้คำหยาบโดยตรง แต่สื่อความหมายเชิงลบผ่านบริบทหรือความคิดเห็น ทำให้ model ตรวจจับได้ยากกว่าข้อความที่มีคำหยาบชัดเจน
+False positives คือกรณีที่ข้อความทั่วไปถูกจัดเป็น toxic เช่น
+“terra ไม่ผ่านด้านการออกแบบ ดูมันขาดเสน่ห์มากๆเลย”
+ข้อความลักษณะนี้เป็นการแสดงความคิดเห็นหรือวิจารณ์ทั่วไป ซึ่งมีน้ำเสียงเชิงลบ แต่ไม่ได้เป็นการโจมตีบุคคลหรือกลุ่มบุคคลโดยตรง
+จากการวิเคราะห์พบว่าความท้าทายหลักของ model อยู่ที่ ข้อความที่มีความกำกวมทางภาษา เช่น การประชด การใช้ภาษาพูด หรือความคิดเห็นเชิงลบที่ไม่ใช่ hate speech โดยตรง ซึ่งทำให้การจำแนก toxicity ต้องอาศัยความเข้าใจบริบทของข้อความมากกว่าการตรวจจับคำหยาบเพียงอย่างเดียว
+5. Infrastructure และ Tooling
+5.1 Data Storage
+ข้อมูลสำหรับฝึกโมเดลถูกเก็บในรูปแบบ ไฟล์ CSV เพราะใช้งานง่ายและเหมาะกับข้อมูลประเภทข้อความ ส่วนไฟล์ขนาดใหญ่สามารถจัดการผ่าน Git LFS ได้ โมเดลที่ฝึกเสร็จแล้วจะถูกเก็บไว้ใน local filesystem (โฟลเดอร์ models/) เพื่อให้เรียกใช้ตอน inference ได้รวดเร็ว
+
+5.2 Training Environment
+การฝึกโมเดลสามารถทำได้ทั้งบน Google Colab หรือ เครื่องที่มี GPU ในเครื่อง (local GPU) เพื่อช่วยให้การฝึกโมเดลประเภท transformer เช่น WangchanBERTa ทำได้เร็วขึ้น
+
+5.3 Code Versioning
+โครงการนี้ใช้ GitHub ในการจัดการเวอร์ชันของโค้ด ช่วยติดตามการเปลี่ยนแปลงของ preprocessing, training pipeline และ evaluation รวมถึงช่วยให้สมาชิกในทีมทำงานร่วมกันได้สะดวก
+
+5.4 Experiment Tracking
+ในการพัฒนาโมเดล มีการบันทึกผลการทดลองแต่ละครั้งเพื่อใช้เปรียบเทียบและปรับปรุงโมเดล โดยข้อมูลที่บันทึกประกอบด้วย
+model metrics เช่น accuracy, precision หรือ F1-score
+
+
+hyperparameters ที่ใช้ในการฝึกโมเดล เช่น learning rate หรือ batch size
+
+
+ผลลัพธ์ของการทดลอง ของแต่ละรอบการ train
+ข้อมูลเหล่านี้ช่วยให้สามารถ เปรียบเทียบผลการทดลองแต่ละแบบและเลือกโมเดลที่ให้ผลลัพธ์ดีที่สุด สำหรับนำไปใช้งานจริง.
+
+6. Data Shift และ Monitoring 
+6.1 ความเป็นไปได้ของ Data Distribution Shift
+ตัวอย่าง data shift ที่อาจเกิดขึ้น
+1. New Slang (แสลงใหม่/คำศัพท์เฉพาะกลุ่ม)
+ใน Dataset 5 (LGBT) เราจะเห็นคำว่า "อิตุ๊ด", "อิสัส" ซึ่งเป็นคำด่าแบบดั้งเดิม แต่ในโลกจริง แสลงเปลี่ยนไวมาก
+ตัวอย่าง Shift: เดิมโมเดลรู้จักคำว่า "เลว" แต่ในอนาคตคนอาจใช้คำว่า "ฉ่ำ" ในเชิงลบ 
+(เช่น ด่าฉ่ำ) หรือคำเรียกแทนตัวเอง/กลุ่มคนแบบใหม่ๆ (เช่น "พวกตัวมารดา" ในเชิงประชดประชัน)
+ผลกระทบ: หากโมเดลไม่ได้รับการอัปเดต โมเดลอาจมองคำแสลงใหม่เหล่านี้เป็น ข้อความทั่วไป (Non-toxic) ทำให้ระบบ ตรวจจับข้อความ Toxic ได้น้อยลง และส่งผลให้ค่า Recall ลดลง
+2. Emoji 
+ใน Dataset บางส่วน เช่น Dataset 2 และ 3 มีการใช้ Emoji อยู่บ้าง เช่น 😆 แต่ในโลกออนไลน์ Emoji มักถูกใช้เพื่อ สื่อความหมายเชิงนัยหรือประชดประชัน
+ตัวอย่าง Shift: 
+การใช้ 🤡 (Clown) ใช้เพื่อสื่อว่าอีกฝ่าย ไร้สาระ / น่าขำ
+การใช้ 💀 (Skull) ใช้เพื่อสื่อว่า ขำจนตาย หรือแสดงความสะใจ
+การใช้ 🐍 (Snake) ใช้แทนคำด่าว่า คนทรยศ / เจ้าเล่ห์
+ผลกระทบ: หากโมเดลเรียนรู้เฉพาะ ข้อความ (Text-only) และไม่ได้คำนึงถึงการใช้ Emoji โมเดลอาจ ไม่สามารถตีความความหมายแฝงของข้อความได้ ส่งผลให้ข้อความที่มีลักษณะ Toxic หลุดผ่านระบบไปได้
+3. Code-switching (ไทยคำ-อังกฤษคำ)
+เนื่องจาก Dataset ภาษาไทยและภาษาอังกฤษโมเดลอาจจะเก่งแยกกัน แต่ในโลกโซเชียลคนมักใช้ผสมกัน
+ตัวอย่าง Shift: 
+"อย่ามาทำตัว toxic แถวนี้"
+"ความเห็นนี้มัน red flag มาก"
+"อี loser"
+ผลกระทบ: หากโมเดลถูกฝึกด้วยข้อมูลที่แยกภาษาอย่างชัดเจน (เช่น dataset ภาษาไทยและภาษาอังกฤษแยกกัน) โมเดลอาจ มีความมั่นใจต่ำ (Low Confidence) เมื่อเจอประโยคที่มีการผสมภาษา เพราะโครงสร้างประโยคไม่ตรงกับข้อมูลที่เคยเห็นใน dataset ใด dataset หนึ่ง
+4. รูปแบบ Toxic Language เปลี่ยนไป (Dog Whistles & Sarcasm)
+ใน Dataset 1 และ 4 เราจะเห็นการด่าแบบตรงไปตรงมา (Direct Insult) เช่น "ควาย", "เหี้ย"
+ตัวอย่าง Shift: การด่าแบบ "สุภาพประชดประชัน" หรือการใช้ "คำเลี่ยง" (Dog Whistles)
+แบบเดิม: "พวกพม่า..." (Dataset 3)
+แบบใหม่: ใช้ตัวย่อหรือคำด่าที่รู้กันเฉพาะกลุ่มเพื่อเลี่ยงการโดนแบน (เช่น การใช้อักษรย่อทางการเมือง หรือการพิมพ์แบบ "อ_เ_ี้ย" เพื่อหลบ Keyword Filter)
+ผลกระทบ: ข้อความประเภทนี้อาจทำให้โมเดล ให้ค่า confidence ต่ำลง (เช่นอยู่ในช่วง 0.4–0.6) เนื่องจากรูปแบบภาษาดูเหมือนจะสุภาพ แต่มีเจตนาเชิงลบแฝงอยู่ ทำให้การจำแนกประเภททำได้ยากขึ้น
+
+6.2 Monitoring Metrics
+metric ที่ควรติดตาม
+1. Toxic Rate คือสัดส่วนของข้อความที่โมเดลตรวจพบว่าเป็น Toxic เมื่อเทียบกับจำนวนข้อความทั้งหมดที่ผ่านระบบในช่วงเวลาหนึ่ง
+หาก Toxic Rate เพิ่มขึ้นสูงผิดปกติ อาจหมายความว่า โมเดล over-sensitive หรือมีเหตุการณ์พิเศษในสังคม (เช่น การเลือกตั้ง)
+หาก Toxic Rate ต่ำผิดปกติอย่างต่อเนื่อง อาจหมายความว่า โมเดลไม่สามารถจับ toxic content รูปแบบใหม่ได้ (เช่น slang ที่เปลี่ยน)
+2. Model Confidence Distribution
+Metric นี้ใช้ดูการกระจายตัวของ confidence score ที่โมเดลให้กับแต่ละ prediction เช่น 
+0.9 หมายถึง โมเดลมั่นใจสูงว่าข้อความนั้นเป็น Toxic
+0.1 หมายถึง โมเดลมั่นใจสูงว่าข้อความนั้นเป็น Non-toxic
+โดยปกติแล้ว โมเดลที่ทำงานได้ดีมักจะให้ค่าความมั่นใจที่ กระจุกอยู่ใกล้ 0 หรือ 1                                                                  แต่หากพบว่า confidence score เริ่มกระจายตัวอยู่ในช่วง 0.4 – 0.6 มากขึ้น แสดงว่าโมเดลเริ่ม ไม่มั่นใจในการตัดสินใจ กับข้อมูลที่เข้ามา สาเหตุที่เป็นไปได้ เช่น
+มี data shift เกิดขึ้นในข้อมูลจริง
+รูปแบบภาษาของผู้ใช้เปลี่ยนไป
+ข้อมูล input แตกต่างจาก dataset ที่ใช้ในการ train โมเดล
+การติดตาม metric นี้จึงช่วยทำหน้าที่เป็น early warning signal เพื่อบอกให้ทราบว่าโมเดลอาจเริ่มมีปัญหา ก่อนที่ performance metric เช่น accuracy หรือ recall จะลดลงอย่างเห็นได้ชัด
+3. Recall ของ Toxic Class คือสัดส่วนของข้อความที่เป็น Toxic จริง และโมเดลสามารถตรวจจับได้ถูกต้อง
+หาก Recall ลดลงอย่างต่อเนื่อง แสดงว่าโมเดลกำลัง พลาด toxic content มากขึ้น (False Negative เพิ่มขึ้น) ทำให้ข้อความที่เป็นอันตรายหลุดผ่านระบบไปถึงผู้ใช้ได้ ซึ่งเป็นความเสี่ยงสำคัญของระบบ moderation และอาจจำเป็นต้อง ตรวจสอบ dataset หรือ retrain โมเดล
+หาก Recall เพิ่มขึ้นอย่างผิดปกติ ก็อาจเป็นสัญญาณว่าระบบเริ่ม flag ข้อความจำนวนมากขึ้นเกินไป ซึ่งอาจทำให้ False Positive เพิ่มขึ้น และเพิ่มภาระให้ทีม moderator ดังนั้นควรตรวจสอบร่วมกับค่า Precision เพื่อดูว่าประสิทธิภาพของโมเดลยังสมดุลอยู่หรือไม่
+เนื่องจากการปล่อยข้อความ Toxic หลุดไป (False Negative) สามารถสร้างผลกระทบต่อผู้ใช้และชุมชนได้มากกว่าการบล็อกข้อความที่ไม่เป็นอันตราย (False Positive)
+
+7. Deployment และ Prediction Mode
+7.1 Prediction Mode
+ระบบถูกออกแบบให้ใช้ online prediction เนื่องจากระบบมีหน้าที่ตรวจจับ toxic comment ทันทีหลังจากที่ผู้ใช้โพสต์ข้อความ หากใช้การประมวลผลแบบ real-time จะช่วยให้ระบบสามารถตรวจจับและจัดการข้อความที่ไม่เหมาะสมได้รวดเร็ว ลดโอกาสที่ข้อความที่เป็นอันตรายจะถูกเผยแพร่ต่อผู้ใช้คนอื่น นอกจากนี้ online prediction ยังช่วยให้สามารถตอบสนองต่อผู้ใช้ได้ทันที ทำให้ระบบ moderation มีประสิทธิภาพมากขึ้น
+
+
+7.2 Latency Requirement
+ระบบ moderation จำเป็นต้องมี latency ต่ำ เพราะต้องประมวลผลข้อความของผู้ใช้จำนวนมากในเวลาสั้น ๆ หากการตอบสนองช้าเกินไป ผู้ใช้จะรู้สึกว่าระบบไม่ลื่นไหล และอาจทำให้ข้อความที่ไม่เหมาะสมแสดงผลก่อนที่ระบบจะตรวจจับได้ ดังนั้นระบบจึงตั้งเป้าหมายให้เวลาในการประมวลผลต่อคำขอ (inference latency) อยู่ที่ประมาณ < 200 ms ซึ่งถือว่าเพียงพอสำหรับการใช้งานแบบ real-time ในระบบตรวจสอบข้อความ
+
+7.3 Scalability Considerations
+เมื่อจำนวนผู้ใช้งานเพิ่มขึ้น ระบบอาจต้องรองรับคำขอจำนวนมากในเวลาเดียวกัน ซึ่งอาจส่งผลให้เกิดปัญหา เช่น
+ภาระการประมวลผลของโมเดล (inference workload) เพิ่มขึ้น
+
+
+ขีดจำกัดของเซิร์ฟเวอร์ (server capacity)
+
+
+ค่าใช้จ่ายด้านทรัพยากรคอมพิวเตอร์ (computational cost)
+
+
+เพื่อแก้ปัญหานี้ ระบบสามารถขยายได้โดยใช้แนวคิด distributed inference services ซึ่งคือการรันหลาย instance ของโมเดลบนหลายเซิร์ฟเวอร์พร้อมกัน เพื่อกระจายภาระการประมวลผล ทำให้ระบบสามารถรองรับผู้ใช้งานจำนวนมากได้โดยที่ประสิทธิภาพยังคงดีอยู่
+
+8. การปรับปรุงจาก Progress 1
+Feedback
+Improvement
+Evidence
+Clarify model selection
+เพิ่ม F2 metric
+Section 3
+Label mapping concern
+วิเคราะห์ dataset เพิ่ม
+Section 6
+Need error analysis
+เพิ่ม confusion matrix
+Section 4
+Multilingual validation
+เพิ่ม analysis
+Section 3
+Monitoring concept
+เพิ่ม drift detection
+Section 6
+
+
+

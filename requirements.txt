@@ -1,6 +1,7 @@
 pandas
 numpy
 scikit-learn
+scipy
 matplotlib
 seaborn
 pythainlp
@@ -8,9 +9,14 @@ emoji
 xgboost
 imbalanced-learn
 nbformat
+notebook
+ipykernel
+joblib
 torch
 transformers
 tqdm
 tiktoken
 sentencepiece
 protobuf
+fastapi
+uvicorn

@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>THAI-MOD Admin Portal</title>
+    <link rel="stylesheet" href="/static/styles.css?v=20260331-1" />
+  </head>
+  <body class="admin-page">
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <p class="sidebar-kicker">THAI-MOD</p>
+          <h1>TOXIC DETECTION</h1>
+          <p class="sidebar-version">Moderator Assist Interface</p>
+        </div>
+
+        <nav class="sidebar-nav" aria-label="Main">
+          <a class="nav-item" href="/">Comment Analyzer</a>
+          <a class="nav-item nav-item-active" href="/admin">Admin Portal</a>
+        </nav>
+
+        <div class="sidebar-status">
+          <span class="status-dot"></span>
+          <div>
+            <strong>Session Active</strong>
+            <p>Human-in-the-loop moderation</p>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main-shell">
+        <header class="topbar">
+          <div>
+            <p class="topbar-kicker">Admin</p>
+            <h2>Model and service overview</h2>
+          </div>
+          <div class="topbar-badges">
+            <span class="pill">Internal view</span>
+            <span class="pill pill-highlight" id="adminHealthBadge">Checking API</span>
+          </div>
+        </header>
+
+        <section class="hero-panel admin-hero-panel">
+          <div class="hero-copy">
+            <p class="eyebrow">Admin_Portal</p>
+            <h3>Monitor the moderation service</h3>
+            <p>
+              This page is for admins to quickly inspect deployment health, model details,
+              dataset coverage, and evaluation metrics behind the current app.
+            </p>
+          </div>
+          <div class="hero-metrics">
+            <article class="metric-card">
+              <span>Model name</span>
+              <strong id="adminModelName">Loading...</strong>
+            </article>
+            <article class="metric-card">
+              <span>Deployment mode</span>
+              <strong id="adminDeploymentMode">Loading...</strong>
+            </article>
+            <article class="metric-card">
+              <span>Cache status</span>
+              <strong id="adminCacheStatus">Loading...</strong>
+            </article>
+          </div>
+        </section>
+
+        <section class="workspace-grid admin-workspace-grid">
+          <article class="panel admin-panel">
+            <div class="panel-heading">
+              <p class="eyebrow">Health</p>
+              <h3>Service status</h3>
+              <p class="panel-copy">Live values pulled from the backend endpoints exposed by the app.</p>
+            </div>
+
+            <div class="admin-stats-grid">
+              <article class="score-card">
+                <span>API status</span>
+                <strong id="adminStatus">-</strong>
+              </article>
+              <article class="score-card">
+                <span>Default threshold</span>
+                <strong id="adminThreshold">-</strong>
+              </article>
+            </div>
+
+            <div class="micro-grid">
+              <article class="micro-card">
+                <span class="micro-label">Model loaded</span>
+                <strong id="adminLoaded">-</strong>
+              </article>
+              <article class="micro-card">
+                <span class="micro-label">Dataset rows</span>
+                <strong id="adminDatasetRows">-</strong>
+              </article>
+            </div>
+          </article>
+
+          <article class="panel admin-panel">
+            <div class="panel-heading">
+              <p class="eyebrow">Metrics</p>
+              <h3>Evaluation snapshot</h3>
+              <p class="panel-copy">The current cached baseline emphasizes recall for moderator support.</p>
+            </div>
+
+            <div class="confusion-panel">
+              <div class="confusion-panel-header">
+                <div>
+                  <p class="eyebrow">Confusion_Matrix</p>
+                  <h4>Prediction breakdown</h4>
+                </div>
+                <p class="confusion-caption">Actual label on rows, predicted label on columns.</p>
+              </div>
+
+              <div class="confusion-matrix" id="confusionMatrix">
+                <div class="confusion-corner"></div>
+                <div class="confusion-axis-top">Predicted Non-Toxic</div>
+                <div class="confusion-axis-top">Predicted Toxic</div>
+
+                <div class="confusion-axis-side">Actual Non-Toxic</div>
+                <div class="confusion-cell" id="cm-tn">
+                  <span class="confusion-cell-label">True Negative</span>
+                  <strong class="confusion-cell-value">-</strong>
+                </div>
+                <div class="confusion-cell" id="cm-fp">
+                  <span class="confusion-cell-label">False Positive</span>
+                  <strong class="confusion-cell-value">-</strong>
+                </div>
+
+                <div class="confusion-axis-side">Actual Toxic</div>
+                <div class="confusion-cell" id="cm-fn">
+                  <span class="confusion-cell-label">False Negative</span>
+                  <strong class="confusion-cell-value">-</strong>
+                </div>
+                <div class="confusion-cell" id="cm-tp">
+                  <span class="confusion-cell-label">True Positive</span>
+                  <strong class="confusion-cell-value">-</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="admin-metrics-list" id="adminMetricsList"></div>
+          </article>
+        </section>
+
+        <section class="stream-panel panel admin-panel">
+          <div class="panel-heading">
+            <p class="eyebrow">API</p>
+            <h3>Available endpoints</h3>
+          </div>
+
+          <div class="admin-endpoints">
+            <div class="system-item">
+              <span>Health</span>
+              <strong>GET /api/health</strong>
+            </div>
+            <div class="system-item">
+              <span>Model info</span>
+              <strong>GET /api/model-info</strong>
+            </div>
+            <div class="system-item">
+              <span>Single prediction</span>
+              <strong>POST /api/predict</strong>
+            </div>
+            <div class="system-item">
+              <span>Batch prediction</span>
+              <strong>POST /api/batch-predict</strong>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/static/admin.js?v=20260331-1"></script>
+  </body>
+</html>

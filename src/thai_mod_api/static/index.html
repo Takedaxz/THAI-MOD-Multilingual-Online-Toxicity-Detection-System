@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>THAI-MOD Forensic Console</title>
+    <link rel="stylesheet" href="/static/styles.css?v=20260331-1" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <p class="sidebar-kicker">THAI-MOD</p>
+          <h1>TOXIC DETECTION</h1>
+          <p class="sidebar-version">Moderator Assist Interface</p>
+        </div>
+
+        <nav class="sidebar-nav" aria-label="Main">
+          <a class="nav-item nav-item-active" href="/">Comment Analyzer</a>
+          <a class="nav-item" href="/admin">Admin Portal</a>
+        </nav>
+
+        <div class="sidebar-status">
+          <span class="status-dot"></span>
+          <div>
+            <strong>Session Active</strong>
+            <p>Human-in-the-loop moderation</p>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main-shell">
+        <header class="topbar">
+          <div>
+            <p class="topbar-kicker">Toxic Detection Labs</p>
+            <h2>Cross-lingual moderation console</h2>
+          </div>
+          <div class="topbar-badges">
+            <span class="pill">Thai + English</span>
+            <span class="pill pill-highlight">Online</span>
+          </div>
+        </header>
+
+        <section class="hero-panel" id="overview">
+          <div class="hero-copy">
+            <p class="eyebrow">Comment_Analyzer_v2</p>
+            <h3>Analyze risky comments before they spread</h3>
+            <p>
+              Paste Thai, English, or mixed-language text to get a moderation recommendation,
+              risk score, confidence, and processed text used by the model.
+            </p>
+          </div>
+          <div class="hero-metrics">
+            <article class="metric-card">
+              <span>Default threshold</span>
+              <strong id="heroThreshold">0.40</strong>
+            </article>
+            <article class="metric-card">
+              <span>Model source</span>
+              <strong id="modelVersion">Loading...</strong>
+            </article>
+            <article class="metric-card">
+              <span>API health</span>
+              <strong id="healthStatus">Checking...</strong>
+            </article>
+          </div>
+        </section>
+
+        <section class="workspace-grid" id="analyzer">
+          <article class="panel input-panel">
+            <div class="panel-heading">
+              <p class="eyebrow">Input_Buffer</p>
+              <h3>Submit comment for analysis</h3>
+              <p class="panel-copy">The interface keeps the original app behavior, with a more forensic-style review flow.</p>
+            </div>
+
+            <label class="input-label" for="commentInput">Comment text</label>
+            <textarea
+              id="commentInput"
+              rows="10"
+              placeholder="Type Thai, English, or mixed-language text here..."
+            ></textarea>
+
+            <div class="sample-actions" aria-label="Sample comments">
+              <button class="ghost-button sample-button" data-text="ขอบคุณมากครับ ช่วยได้เยอะเลย">Safe Thai</button>
+              <button class="ghost-button sample-button" data-text="มึงมันแย่มาก คนแบบนี้ไม่ควรอยู่ที่นี่">Toxic Thai</button>
+              <button class="ghost-button sample-button" data-text="this comment is abusive and hateful">Toxic English</button>
+              <button class="ghost-button sample-button" data-text="โคตร toxic เลย report มันไป">Mixed</button>
+            </div>
+
+            <div class="controls-panel">
+              <div class="slider-wrap">
+                <label for="thresholdInput">Sensitivity threshold</label>
+                <input id="thresholdInput" type="range" min="0.1" max="0.9" step="0.05" value="0.4" />
+                <div class="slider-meta">
+                  <span>More sensitive</span>
+                  <strong id="thresholdValue">0.40</strong>
+                </div>
+              </div>
+
+              <button id="analyzeButton" class="primary-button">
+                <span>Analyze Comment</span>
+              </button>
+            </div>
+
+            <div class="processing-panel hidden" id="processingPanel" aria-live="polite">
+              <div class="processing-indicator" aria-hidden="true"></div>
+              <div>
+                <strong>Neural processing active</strong>
+                <p id="processingLabel">Deconstructing semantic tokens...</p>
+              </div>
+            </div>
+          </article>
+
+          <div class="results-column">
+            <article class="panel result-panel">
+              <div class="result-accent" id="resultAccent"></div>
+              <div class="panel-heading">
+                <p class="eyebrow">Detection_Report</p>
+                <h3 id="recommendation">Awaiting input</h3>
+                <p class="panel-copy">Review the recommendation, then decide whether the comment should be allowed or escalated.</p>
+              </div>
+
+              <div class="result-banner neutral" id="triageBanner">
+                <div>
+                  <span class="banner-label">Predicted label</span>
+                  <strong id="predictedLabel">-</strong>
+                </div>
+                <div class="result-action neutral" id="actionTag">Stand by</div>
+              </div>
+
+              <div class="score-grid">
+                <article class="score-card">
+                  <span>Toxicity score</span>
+                  <strong id="toxicScore">-</strong>
+                </article>
+                <article class="score-card">
+                  <span>Confidence</span>
+                  <strong id="confidence">-</strong>
+                </article>
+              </div>
+
+              <div class="bar-section">
+                <div class="bar-row">
+                  <span>Risk signal</span>
+                  <span id="riskPercent">0%</span>
+                </div>
+                <div class="signal-track">
+                  <div class="signal-fill signal-fill-risk" id="riskBar"></div>
+                </div>
+              </div>
+
+              <div class="bar-section">
+                <div class="bar-row">
+                  <span>Confidence signal</span>
+                  <span id="confidencePercent">0%</span>
+                </div>
+                <div class="signal-track">
+                  <div class="signal-fill signal-fill-confidence" id="confidenceBar"></div>
+                </div>
+              </div>
+
+              <div class="micro-grid">
+                <article class="micro-card">
+                  <span class="micro-label">Threshold</span>
+                  <strong id="resultThreshold">0.40</strong>
+                </article>
+                <article class="micro-card">
+                  <span class="micro-label">Source model</span>
+                  <strong id="sourceModel">-</strong>
+                </article>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="stream-panel panel" id="stream">
+          <div class="panel-heading">
+            <p class="eyebrow">Live_Forensic_Stream</p>
+            <h3>Recent checks in this session</h3>
+            <p class="panel-copy">A lightweight moderator trail generated from your current browser session.</p>
+          </div>
+
+          <div class="history-table-wrap">
+            <table class="history-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Decision</th>
+                  <th>Label</th>
+                  <th>Toxic score</th>
+                  <th>Comment</th>
+                </tr>
+              </thead>
+              <tbody id="historyList"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/static/app.js?v=20260331-1"></script>
+  </body>
+</html>
