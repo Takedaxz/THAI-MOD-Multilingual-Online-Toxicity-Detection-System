@@ -538,111 +538,57 @@ graph TB
 
 ### Inference Flow: BERT Primary Path
 
-```
-[API: predict(text="โคตร toxic เลย report มันไป", threshold=0.4)]
-    |
-    v
-[Text Preprocessor]
-    |-- Remove URLs -> (none found)
-    |-- Demojize emojis -> (none found)
-    |-- Lowercase ASCII -> "โคตร toxic เลย report มันไป"
-    |
-    v
-[BERT Tokenizer (CamembertTokenizer)]
-    |-- SentencePiece encode: split into subword tokens
-    |-- Add special tokens: [CLS] ... [SEP]
-    |-- Pad/truncate to max_length (e.g., 128 on CUDA)
-    |-- Output: input_ids=[5, 1823, 7, 4521, ...], attention_mask=[1, 1, 1, 1, ...]
-    |
-    v
-[Device Manager] -> move input tensors to GPU (if available)
-    |
-    v
-[WangchanBERTa Model]
-    |-- model.eval(), torch.no_grad()
-    |-- Forward pass through 12 transformer layers + classification head
-    |-- Output: logits = [-1.2, 2.8]
-    |
-    v
-[Score Converter]
-    |-- softmax([-1.2, 2.8]) -> [0.018, 0.982]
-    |-- toxic_score = 0.982
-    |
-    v
-[Threshold Engine]
-    |-- 0.982 >= 0.4 -> label="toxic", recommendation="FLAG_FOR_REVIEW"
-    |-- confidence = 0.982
-    |
-    v
-[Return PredictionResult]
-    {text: "โคตร toxic เลย report มันไป",
-     processed_text: "โคตร toxic เลย report มันไป",
-     predicted_label: "toxic",
-     toxic_score: 0.982,
-     confidence: 0.982,
-     threshold: 0.4,
-     recommendation: "FLAG_FOR_REVIEW",
-     source_model: "WangchanBERTa (fine-tuned)"}
+**Example input**: `"โคตร toxic เลย report มันไป"` (threshold=0.4)
+
+```mermaid
+graph LR
+    A["API: predict()"] --> B["Preprocessor<br/>Remove URLs, demojize,<br/>lowercase ASCII"]
+    B -- '"โคตร toxic เลย report มันไป"' --> C["BERT Tokenizer<br/>SentencePiece encode<br/>+ pad to max_length"]
+    C -- "input_ids, attention_mask" --> D["Device Manager<br/>Move to GPU"]
+    D --> E["WangchanBERTa<br/>12 layers + clf head<br/>logits: [-1.2, 2.8]"]
+    E --> F["Softmax<br/>[0.018, 0.982]<br/>toxic_score = 0.982"]
+    F --> G{"0.982 >= 0.4?"}
+    G -- "Yes" --> H["toxic<br/>FLAG_FOR_REVIEW<br/>confidence: 0.982"]
+
+    style A fill:#1168bd,stroke:#0b4884,color:#fff
+    style G fill:#e8a820,stroke:#b8841a,color:#000
+    style H fill:#e74c3c,stroke:#c0392b,color:#fff
 ```
 
 ### Inference Flow: LR Fallback Path
 
-```
-[BERT artifact not found at startup]
-    |
-    v
-[Model Loader] -> log warning -> activate LR Fallback Pipeline
-    |
-    v
-[API: predict(text, threshold)]
-    |
-    v
-[Text Preprocessor] -> same cleaning as BERT path
-    |
-    v
-[LR Fallback Pipeline]
-    |-- PyThaiNLP Tokenizer: word segment Thai text
-    |-- TF-IDF Vectorizer: look up tokens, compute TF-IDF
-    |-- LR Classifier: predict_proba -> [P(non-toxic), P(toxic)]
-    |-- toxic_score = P(toxic)
-    |
-    v
-[Threshold Engine] -> same logic as BERT path
-    |
-    v
-[Return PredictionResult with source_model: "TF-IDF + Logistic Regression (Balanced)"]
+```mermaid
+graph LR
+    A["BERT not found"] -. "Warning log" .-> B["LR Fallback activated"]
+    B --> C["API: predict()"]
+    C --> D["Preprocessor<br/>Same cleaning as BERT"]
+    D --> E["PyThaiNLP tokenize<br/>+ TF-IDF vectorize"]
+    E --> F["LR predict_proba<br/>-> toxic_score"]
+    F --> G["Threshold Engine<br/>Same logic as BERT"]
+    G --> H["PredictionResult<br/>source: TF-IDF + LR"]
+
+    style A fill:#e74c3c,stroke:#c0392b,color:#fff
+    style B fill:#e8a820,stroke:#b8841a,color:#000
+    style C fill:#1168bd,stroke:#0b4884,color:#fff
+    style H fill:#27ae60,stroke:#1e8449,color:#fff
 ```
 
 ### Model Startup Sequence
 
-```
-[App startup: ensure_ready()]
-    |
-    v
-[Model Loader]
-    |-- Check models/wangchanberta_finetuned/ exists?
-    |
-    |-- YES:
-    |   |-- Load tokenizer: CamembertTokenizer.from_pretrained(path)
-    |   |-- Load model: CamembertForSequenceClassification.from_pretrained(path)
-    |   |-- [Device Manager] detect hardware -> move model to device
-    |   |-- model.eval()
-    |   |-- deployment_mode = "transformer_inference"
-    |   |-- READY
-    |
-    |-- NO:
-    |   |-- Check models/thai_mod_baseline.joblib exists?
-    |   |
-    |   |-- YES:
-    |   |   |-- joblib.load(pipeline)
-    |   |   |-- deployment_mode = "cached_startup_baseline"
-    |   |   |-- READY
-    |   |
-    |   |-- NO:
-    |       |-- Train LR from 8 datasets
-    |       |-- Save to joblib + metadata JSON
-    |       |-- deployment_mode = "trained_and_cached"
-    |       |-- READY
+```mermaid
+graph LR
+    A(["ensure_ready()"]) --> B{"BERT weights<br/>exist?"}
+    B -- "Yes" --> C["Load BERT +<br/>tokenizer"] --> D["Detect device<br/>Move to GPU"] --> E["READY<br/>transformer_inference"]
+    B -- "No" --> F{"LR cache<br/>exists?"}
+    F -- "Yes" --> G["joblib.load()"] --> H["READY<br/>cached_startup_baseline"]
+    F -- "No" --> I["Train LR<br/>from 8 datasets"] --> J["Save cache"] --> K["READY<br/>trained_and_cached"]
+
+    style A fill:#08427b,stroke:#052e56,color:#fff
+    style B fill:#e8a820,stroke:#b8841a,color:#000
+    style F fill:#e8a820,stroke:#b8841a,color:#000
+    style E fill:#27ae60,stroke:#1e8449,color:#fff
+    style H fill:#2ecc71,stroke:#27ae60,color:#fff
+    style K fill:#2ecc71,stroke:#27ae60,color:#fff
 ```
 
 ### Performance Characteristics
