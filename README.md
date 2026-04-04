@@ -25,7 +25,7 @@ Current deployed model:
 
 Current known gaps:
 
-- no authentication yet
+- basic demo authentication is implemented (single demo account)
 - no deployed BERT inference in the web app yet
 - no formal monitoring dashboard backend yet
 - no automated tests yet
@@ -38,10 +38,21 @@ pip install -r requirements.txt
 uvicorn src.thai_mod_api.main:app --reload
 ```
 
+Optional auth environment variables (recommended for demo setup):
+
+```bash
+export THAI_MOD_AUTH_USERNAME="moderator"
+export THAI_MOD_AUTH_PASSWORD="thai-mod-demo-2026"
+export THAI_MOD_SESSION_SECRET="change-this-for-demo"
+# optional: protect analyzer page "/" and prediction APIs as well
+export THAI_MOD_PROTECT_ANALYZER="false"
+```
+
 Then open:
 
 - API docs: `http://127.0.0.1:8000/docs`
 - Moderator UI: `http://127.0.0.1:8000/`
+- Login page: `http://127.0.0.1:8000/login`
 
 ### Quick Manual Test
 
@@ -58,14 +69,25 @@ Then open:
    - `this comment is abusive and hateful`
    - `โคตร toxic เลย report มันไป`
 6. Restart the server once and check that startup reuses the cache instead of retraining
+7. Open `http://127.0.0.1:8000/admin` while logged out and confirm redirect to `/login`
+8. Login with demo credentials and confirm `/admin` is accessible
+9. Logout from admin page and confirm `/admin` is protected again
 
 ### API Endpoints
 
 - `GET /`
+- `GET /login`
+- `GET /admin` (protected)
+- `GET /api/auth/me`
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
 - `GET /api/health`
 - `GET /api/model-info`
+- `GET /api/admin/overview` (protected)
 - `POST /api/predict`
 - `POST /api/batch-predict`
+
+See `docs/auth-flow.md` for presenter-friendly login/access-control flow.
 
 ### Notes
 
