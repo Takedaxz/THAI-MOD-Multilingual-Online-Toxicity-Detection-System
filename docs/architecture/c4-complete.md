@@ -543,7 +543,7 @@ graph TB
 ```mermaid
 graph LR
     A["API: predict()"] --> B["Preprocessor<br/>Remove URLs, demojize,<br/>lowercase ASCII"]
-    B -- '"โคตร toxic เลย report มันไป"' --> C["BERT Tokenizer<br/>SentencePiece encode<br/>+ pad to max_length"]
+    B -- "cleaned text" --> C["BERT Tokenizer<br/>SentencePiece encode<br/>+ pad to max_length"]
     C -- "input_ids, attention_mask" --> D["Device Manager<br/>Move to GPU"]
     D --> E["WangchanBERTa<br/>12 layers + clf head<br/>logits: [-1.2, 2.8]"]
     E --> F["Softmax<br/>[0.018, 0.982]<br/>toxic_score = 0.982"]
@@ -718,211 +718,155 @@ classDiagram
 
 #### `__init__(project_root, default_threshold=0.4)`
 
-```
 Sets up paths and configuration. No model loading happens here.
 
-Attributes initialized:
-  project_root       -> root of the repository (2 levels up from main.py)
-  default_threshold  -> 0.4 (recall-favoring default)
-  dataset_files      -> [datasets/dataset1.csv, ..., datasets/dataset8.csv]
-  model_dir          -> models/ (created if not exists)
-  model_path         -> models/thai_mod_baseline.joblib
-  metadata_path      -> models/thai_mod_baseline.metadata.json
-  bundle             -> None (loaded lazily)
-```
+| Attribute | Value |
+|---|---|
+| `project_root` | Root of the repository (2 levels up from main.py) |
+| `default_threshold` | 0.4 (recall-favoring default) |
+| `dataset_files` | `[datasets/dataset1.csv, ..., datasets/dataset8.csv]` |
+| `model_dir` | `models/` (created if not exists) |
+| `model_path` | `models/thai_mod_baseline.joblib` |
+| `metadata_path` | `models/thai_mod_baseline.metadata.json` |
+| `bundle` | None (loaded lazily) |
 
 #### `ensure_ready()`
 
-```
-Called once during app startup (FastAPI lifespan).
-If bundle is None: triggers _load_or_train().
-Idempotent: safe to call multiple times.
+Called once during app startup (FastAPI lifespan). Idempotent.
 
-Flow:
-  bundle is None? --YES--> _load_or_train() --> assign to self.bundle
-                  --NO---> return (already ready)
+```mermaid
+graph LR
+    A["ensure_ready()"] --> B{"bundle is None?"}
+    B -- "Yes" --> C["_load_or_train()"] --> D["Assign to self.bundle"]
+    B -- "No" --> E["Return immediately"]
 ```
 
 #### `_load_or_train() -> dict`
 
-```
-Decision point: load cached model or train from scratch.
+```mermaid
+graph LR
+    A{"Cache files exist?"} -- "Yes" --> B["joblib.load pipeline<br/>+ read metadata JSON"]
+    B --> C{"Load OK?"}
+    C -- "Yes" --> D["Return bundle<br/>cache_status: loaded_from_cache"]
+    C -- "Error" --> E
+    A -- "No" --> E["_train_bundle()"] --> F["_save_bundle()"] --> G["Return bundle<br/>cache_status: trained_and_cached"]
 
-Flow:
-  model_path exists AND metadata_path exists?
-    |
-    YES --> try:
-    |         joblib.load(model_path) -> pipeline
-    |         _load_metadata() -> metadata dict
-    |         return bundle with cache_status="loaded_from_cache"
-    |       except:
-    |         fall through to training
-    |
-    NO/FAIL --> _train_bundle() -> bundle
-                _save_bundle(bundle)
-                bundle["cache_status"] = "trained_and_cached"
-                return bundle
+    style D fill:#27ae60,stroke:#1e8449,color:#fff
+    style G fill:#27ae60,stroke:#1e8449,color:#fff
+    style A fill:#e8a820,stroke:#b8841a,color:#000
+    style C fill:#e8a820,stroke:#b8841a,color:#000
 ```
 
 #### `_train_bundle() -> dict`
 
-```
 Full training pipeline from raw CSV to evaluated model.
 
-Steps:
-  1. _load_full_dataset() -> DataFrame [texts, category, source]
+```mermaid
+graph LR
+    A["_load_full_dataset()<br/>8 CSVs -> DataFrame"] --> B["train_test_split<br/>80/20, stratified"]
+    B --> C["Build Pipeline<br/>TF-IDF + LR (balanced)"]
+    C --> D["pipeline.fit<br/>X_train, y_train"]
+    D --> E["Evaluate on test set<br/>accuracy, precision,<br/>recall, F1, F2"]
+    E --> F["Return bundle dict"]
 
-  2. train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
-
-  3. Build Pipeline:
-     Pipeline([
-       ("vect", TfidfVectorizer(
-           tokenizer=_tokenize_text,    # PyThaiNLP newmm
-           token_pattern=None,          # disable default regex
-           ngram_range=(1, 2),          # unigrams + bigrams
-           min_df=3,                    # ignore rare terms
-           max_features=20_000          # vocabulary cap
-       )),
-       ("clf", LogisticRegression(
-           class_weight="balanced",     # handle 74/26 imbalance
-           max_iter=1000,
-           random_state=42
-       ))
-     ])
-
-  4. pipeline.fit(X_train, y_train)
-
-  5. Evaluate on test set WITH threshold:
-     probabilities = pipeline.predict_proba(X_test)[:, 1]
-     predictions = (probabilities >= default_threshold).astype(int)
-     Compute: accuracy, precision, recall, F1, F2, confusion_matrix
-
-  6. Return bundle dict:
-     {pipeline, model_name, deployment_mode, default_threshold,
-      trained_at (UTC ISO), dataset_rows, dataset_sources, metrics}
+    style A fill:#438dd5,stroke:#2e6295,color:#fff
+    style D fill:#1168bd,stroke:#0b4884,color:#fff
+    style F fill:#27ae60,stroke:#1e8449,color:#fff
 ```
+
+Pipeline config:
+
+| Component | Config |
+|---|---|
+| TfidfVectorizer | tokenizer=PyThaiNLP newmm, ngram=(1,2), min_df=3, max_features=20,000 |
+| LogisticRegression | class_weight=balanced, max_iter=1000, random_state=42 |
 
 #### `_load_full_dataset() -> DataFrame`
 
-```
-Aggregates all 8 datasets into one clean DataFrame.
+```mermaid
+graph LR
+    A["Read dataset1-8.csv"] --> B["_prepare_dataset()<br/>per file"] --> C["pd.concat all"] --> D["drop_duplicates<br/>by texts"] --> E["DataFrame<br/>texts, category, source"]
 
-Flow:
-  for each dataset_file in dataset_files:
-    _prepare_dataset(file) -> per-file DataFrame
-  pd.concat(all frames)
-  drop_duplicates(subset=["texts"], keep="first")
-  reset_index
-
-Output columns: [texts: str, category: int(0|1), source: str]
+    style E fill:#27ae60,stroke:#1e8449,color:#fff
 ```
 
 #### `_prepare_dataset(dataset_file) -> DataFrame`
 
-```
 Cleans and normalizes a single CSV dataset.
 
-Steps:
-  1. pd.read_csv(dataset_file)
-  2. dropna(subset=["category", "texts"])
-  3. Apply preprocess_text() to "texts" column
-  4. Remove rows where texts is empty after preprocessing
-  5. Label mapping:
-     "pos" -> "neu"  (collapse positive into neutral)
-     "neg" -> 1      (toxic)
-     "neu" -> 0      (non-toxic)
-  6. dropna(subset=["category"]) (remove unmappable labels)
-  7. Cast category to int
-  8. Add source column = filename (e.g., "dataset1.csv")
-  9. Return DataFrame[texts, category, source]
+```mermaid
+graph LR
+    A["read_csv"] --> B["dropna"] --> C["preprocess_text()"] --> D["Filter empty"] --> E["Label map<br/>neg->1, pos/neu->0"] --> F["Add source col"] --> G["Return DataFrame"]
+
+    style G fill:#27ae60,stroke:#1e8449,color:#fff
 ```
 
 #### `preprocess_text(text) -> str` [static]
 
-```
-Text cleaning function. MUST be identical for training and inference.
+Text cleaning function. **Must be identical for training and inference.**
 
-Steps:
-  1. if pd.isna(text): return ""
-  2. cleaned = str(text)
-  3. Remove HTTP(S) URLs:
-     re.sub(r"http[s]?://...", "", cleaned)
-  4. Remove www URLs:
-     re.sub(r"www\\..*", "", cleaned)
-  5. Emoji to text:
-     emoji.demojize(cleaned, language="en")
-  6. Lowercase ASCII only:
-     for each char: lower() if ord(char) < 128, else keep original
-  7. Return cleaned string
+```mermaid
+graph LR
+    A["Raw text"] --> B["Handle NaN"] --> C["Remove URLs<br/>regex"] --> D["Demojize<br/>emoji lib"] --> E["Lowercase ASCII<br/>keep Thai as-is"] --> F["Cleaned text"]
 
-Example:
-  Input:  "ไอ้บ้า 😡 https://t.co/abc THIS IS TOXIC"
-  Output: "ไอ้บ้า :enraged_face:  this is toxic"
+    style A fill:#e74c3c,stroke:#c0392b,color:#fff
+    style F fill:#27ae60,stroke:#1e8449,color:#fff
 ```
+
+Example: `"ไอ้บ้า :enraged_face: https://t.co/abc THIS IS TOXIC"` -> `"ไอ้บ้า :enraged_face:  this is toxic"`
 
 #### `_tokenize_text(text) -> list[str]` [static]
 
-```
-Thai word segmentation. Used as custom tokenizer for TfidfVectorizer.
+Thai word segmentation for TfidfVectorizer.
 
-Steps:
-  1. word_tokenize(str(text), engine="newmm")
-     - newmm = dictionary-based maximum matching algorithm
-     - Handles Thai, English, and mixed text
-  2. Filter: remove empty strings and whitespace-only tokens
-  3. Return list of token strings
+```mermaid
+graph LR
+    A["Text string"] --> B["word_tokenize<br/>engine: newmm"] --> C["Filter empty<br/>+ whitespace"] --> D["Token list"]
 
-Example:
-  Input:  "โคตร toxic เลย"
-  Output: ["โคตร", "toxic", "เลย"]
+    style D fill:#27ae60,stroke:#1e8449,color:#fff
 ```
+
+Example: `"โคตร toxic เลย"` -> `["โคตร", "toxic", "เลย"]`
 
 #### `predict(text, threshold=None) -> PredictionResult`
 
-```
 Single text inference. Main entry point for API.
 
-Steps:
-  1. ensure_ready() (idempotent)
-  2. effective_threshold = threshold or self.default_threshold
-  3. processed_text = preprocess_text(text)
-  4. toxic_score = pipeline.predict_proba([processed_text])[0][1]
-  5. predicted_toxic = int(toxic_score >= effective_threshold)
-  6. confidence = toxic_score if predicted_toxic else (1.0 - toxic_score)
-  7. Return PredictionResult:
-     - text: original input
-     - processed_text: cleaned version
-     - predicted_label: "toxic" or "non-toxic"
-     - toxic_score: float (0.0 - 1.0), rounded to 4 decimals
-     - confidence: float, rounded to 4 decimals
-     - threshold: effective threshold used
-     - recommendation: "FLAG_FOR_REVIEW" or "ALLOW"
-     - source_model: bundle["model_name"]
+```mermaid
+graph LR
+    A["Input text"] --> B["ensure_ready()"] --> C["preprocess_text()"]
+    C --> D["predict_proba<br/>-> toxic_score"]
+    D --> E{"score >= threshold?"}
+    E -- "Yes" --> F["toxic<br/>FLAG_FOR_REVIEW"]
+    E -- "No" --> G["non-toxic<br/>ALLOW"]
+    F --> H["PredictionResult"]
+    G --> H
+
+    style E fill:#e8a820,stroke:#b8841a,color:#000
+    style F fill:#e74c3c,stroke:#c0392b,color:#fff
+    style G fill:#27ae60,stroke:#1e8449,color:#fff
 ```
+
+Returns: `{text, processed_text, predicted_label, toxic_score, confidence, threshold, recommendation, source_model}`
 
 #### `get_model_info() -> dict`
 
-```
-Returns model metadata for /api/model-info and /api/health.
+Returns model metadata for `/api/model-info` and `/api/health`.
 
-Returns:
-  {model_name, deployment_mode, cache_status, default_threshold,
-   trained_at, dataset_rows, dataset_sources, metrics}
-```
+Returns: `{model_name, deployment_mode, cache_status, default_threshold, trained_at, dataset_rows, dataset_sources, metrics}`
 
 #### `_save_bundle(bundle)`
 
-```
 Atomic save of trained model + metadata.
 
-Steps:
-  1. Extract metadata dict from bundle (excludes pipeline object)
-  2. Write pipeline to .joblib.tmp via joblib.dump()
-  3. Write metadata to .json.tmp via json.dump()
-  4. Atomic rename: .tmp -> final path (Path.replace)
+```mermaid
+graph LR
+    A["Extract metadata<br/>from bundle"] --> B["Write .joblib.tmp<br/>joblib.dump"] --> C["Write .json.tmp<br/>json.dump"] --> D["Atomic rename<br/>.tmp -> final path"]
 
-Why atomic: prevents corrupted files if process crashes mid-write.
+    style D fill:#27ae60,stroke:#1e8449,color:#fff
 ```
+
+Atomic writes prevent corrupted files if process crashes mid-write.
 
 ### Bundle Structure (Internal State)
 
