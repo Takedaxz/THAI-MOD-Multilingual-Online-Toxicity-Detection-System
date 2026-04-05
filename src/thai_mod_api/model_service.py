@@ -172,6 +172,8 @@ class ToxicityModelService:
     def _prepare_dataset(self, dataset_file: Path) -> pd.DataFrame:
         df = pd.read_csv(dataset_file).copy()
         df = df.dropna(subset=["category", "texts"])
+        if df.empty:
+            return pd.DataFrame(columns=["texts", "category", "source"])
         df["texts"] = df["texts"].apply(self.preprocess_text)
         df = df[df["texts"].str.strip() != ""].copy()
         df["category"] = df["category"].replace({"pos": "neu"})
@@ -188,12 +190,12 @@ class ToxicityModelService:
 
         cleaned = str(text)
         cleaned = re.sub(
-            r"http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+",
+            r"http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+",
             "",
             cleaned,
         )
         cleaned = re.sub(
-            r"www\\.(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+",
+            r"www\.(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+",
             "",
             cleaned,
         )

@@ -28,7 +28,6 @@ Current known gaps:
 - no authentication yet
 - no deployed BERT inference in the web app yet
 - no formal monitoring dashboard backend yet
-- no automated tests yet
 
 ### Run
 
@@ -66,6 +65,15 @@ Then open:
 - `GET /api/model-info`
 - `POST /api/predict`
 - `POST /api/batch-predict`
+
+### Testing
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+pytest tests/ -v --cov=src/thai_mod_api --cov-report=term-missing
+```
+
+See `docs/testing-and-maintainability.md` for full details.
 
 ### Notes
 
