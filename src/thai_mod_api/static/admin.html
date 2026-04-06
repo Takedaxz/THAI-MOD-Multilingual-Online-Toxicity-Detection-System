@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>THAI-MOD Admin Portal</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260331-1" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260406-5" />
   </head>
   <body class="admin-page">
     <div class="app-shell">
@@ -44,11 +44,8 @@
         <section class="hero-panel admin-hero-panel">
           <div class="hero-copy">
             <p class="eyebrow">Admin_Portal</p>
-            <h3>Monitor the moderation service</h3>
-            <p>
-              This page is for admins to quickly inspect deployment health, model details,
-              dataset coverage, and evaluation metrics behind the current app.
-            </p>
+            <h3>Model overview and monitoring</h3>
+            <p>Inspect the deployed baseline and refresh recent request drift.</p>
           </div>
           <div class="hero-metrics">
             <article class="metric-card">
@@ -146,6 +143,60 @@
 
         <section class="stream-panel panel admin-panel">
           <div class="panel-heading">
+            <p class="eyebrow">Monitoring</p>
+            <h3>Recent traffic monitoring</h3>
+          </div>
+
+          <div class="monitoring-toolbar">
+            <div class="monitoring-controls">
+              <button type="button" class="monitoring-control-button" id="refreshMonitoringButton">
+                Refresh monitoring
+              </button>
+              <button type="button" class="monitoring-control-button monitoring-control-button-muted" id="clearMonitoringLogButton">
+                Clear recent log
+              </button>
+            </div>
+            <div class="monitoring-toolbar-meta">
+              <div class="monitoring-window-meta">
+                <span class="micro-label">Recent window</span>
+                <strong id="monitoringWindowSize">-</strong>
+              </div>
+              <div class="monitoring-window-meta">
+                <span class="micro-label">Reference profile</span>
+                <strong id="monitoringReferenceInfo">-</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="admin-stats-grid">
+            <article class="score-card">
+              <span>Drift status</span>
+              <strong id="monitoringStatus" class="monitoring-emphasis">-</strong>
+            </article>
+            <article class="score-card">
+              <span>PSI</span>
+              <strong id="monitoringPsi" class="monitoring-emphasis">-</strong>
+            </article>
+          </div>
+
+          <div class="micro-grid">
+            <article class="micro-card">
+              <span class="micro-label">Primary drift</span>
+              <strong id="monitoringPrimaryFeature">-</strong>
+            </article>
+            <article class="micro-card">
+              <span class="micro-label">Recent requests</span>
+              <strong id="monitoringRecentCount">-</strong>
+            </article>
+          </div>
+
+          <div class="admin-endpoints" id="monitoringMetricsGrid"></div>
+          <div class="admin-endpoints" id="monitoringLanguageMixGrid"></div>
+          <p class="monitoring-footnote" id="monitoringGeneratedAt">Manual refresh against the latest logged requests.</p>
+        </section>
+
+        <section class="stream-panel panel admin-panel">
+          <div class="panel-heading">
             <p class="eyebrow">API</p>
             <h3>Available endpoints</h3>
           </div>
@@ -167,11 +218,19 @@
               <span>Batch prediction</span>
               <strong>POST /api/batch-predict</strong>
             </div>
+            <div class="system-item">
+              <span>Monitoring summary</span>
+              <strong>GET /api/monitoring</strong>
+            </div>
+            <div class="system-item">
+              <span>Clear recent log</span>
+              <strong>POST /api/monitoring/reset</strong>
+            </div>
           </div>
         </section>
       </main>
     </div>
 
-    <script src="/static/admin.js?v=20260331-1"></script>
+    <script src="/static/admin.js?v=20260406-5"></script>
   </body>
 </html>
