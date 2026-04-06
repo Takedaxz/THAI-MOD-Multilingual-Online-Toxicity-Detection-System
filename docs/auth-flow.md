@@ -28,9 +28,12 @@ Set environment variables before running:
 ```bash
 export THAI_MOD_AUTH_USERNAME="moderator"
 export THAI_MOD_AUTH_PASSWORD="thai-mod-demo-2026"
-export THAI_MOD_SESSION_SECRET="change-this-for-demo"
+export THAI_MOD_SESSION_SECRET="set-a-random-secret-for-your-demo"
 export THAI_MOD_PROTECT_ANALYZER="false"
 ```
+
+The app will not start until these values are explicitly provided.
+If a project-root `.env` file is present, the app loads it automatically.
 
 Then run:
 

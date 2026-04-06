@@ -38,15 +38,18 @@ pip install -r requirements.txt
 uvicorn src.thai_mod_api.main:app --reload
 ```
 
-Optional auth environment variables (recommended for demo setup):
+Required auth environment variables:
 
 ```bash
 export THAI_MOD_AUTH_USERNAME="moderator"
 export THAI_MOD_AUTH_PASSWORD="thai-mod-demo-2026"
-export THAI_MOD_SESSION_SECRET="change-this-for-demo"
+export THAI_MOD_SESSION_SECRET="set-a-random-secret-for-your-demo"
 # optional: protect analyzer page "/" and prediction APIs as well
 export THAI_MOD_PROTECT_ANALYZER="false"
 ```
+
+The app now refuses to start if these auth values are missing.
+If a project-root `.env` file exists, the app loads it automatically on startup.
 
 Then open:
 

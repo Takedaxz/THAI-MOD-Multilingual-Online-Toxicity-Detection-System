@@ -26,10 +26,39 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 model_service = ToxicityModelService(PROJECT_ROOT)
 
-AUTH_USERNAME = os.getenv("THAI_MOD_AUTH_USERNAME", "moderator")
-AUTH_PASSWORD = os.getenv("THAI_MOD_AUTH_PASSWORD", "thai-mod-demo-2026")
-SESSION_SECRET = os.getenv("THAI_MOD_SESSION_SECRET", "thai-mod-dev-session-secret")
+
+def _load_dotenv(dotenv_path: Path) -> None:
+    if not dotenv_path.exists():
+        return
+
+    for raw_line in dotenv_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if not key:
+            continue
+
+        os.environ.setdefault(key, value.strip().strip("'\""))
+
+
+_load_dotenv(PROJECT_ROOT / ".env")
+
 PROTECT_ANALYZER = os.getenv("THAI_MOD_PROTECT_ANALYZER", "false").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _required_env(name: str) -> str:
+    value = os.getenv(name, "").strip()
+    if not value:
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return value
+
+
+AUTH_USERNAME = _required_env("THAI_MOD_AUTH_USERNAME")
+AUTH_PASSWORD = _required_env("THAI_MOD_AUTH_PASSWORD")
+SESSION_SECRET = _required_env("THAI_MOD_SESSION_SECRET")
 
 
 def _session_user(request: Request) -> str | None:
