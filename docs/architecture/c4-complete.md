@@ -970,13 +970,14 @@ sequenceDiagram
 
 ### File Dependencies
 
+This section distinguishes the files that exist in the current repository from the additional modules the v2 future-state design would introduce.
+
 ```
 src/thai_mod_api/
+    # Current repository files
     main.py
         imports: model_service.ToxicityModelService
         imports: schemas.PredictRequest, PredictionResponse, ...
-        imports: auth_service (middleware)
-        imports: monitoring_service
         creates: ToxicityModelService(PROJECT_ROOT)
         lifespan: model_service.ensure_ready()
 
@@ -986,13 +987,20 @@ src/thai_mod_api/
         defines: ToxicityModelService (main class)
         reads: datasets/dataset*.csv (training)
         reads/writes: models/thai_mod_baseline.* (cache)
-        reads/writes: models/wangchanberta_finetuned/ (BERT weights)
 
     schemas.py
         imports: pydantic.BaseModel
         defines: PredictRequest, BatchPredictRequest
         defines: PredictionResponse, BatchPredictionResponse
 
+    static/
+        index.html  -> served at GET /
+        admin.html  -> served at GET /admin
+        app.js      -> moderator UI logic, calls /api/predict
+        admin.js    -> admin UI logic, calls /api/health, /api/model-info
+        styles.css  -> shared styles
+
+    # Planned v2 additions (not implemented in the current tree)
     auth_service.py
         defines: token validation, role checking
         used as: FastAPI middleware dependency
@@ -1002,10 +1010,9 @@ src/thai_mod_api/
         reads/writes: metrics store (JSON or SQLite)
 
     static/
-        index.html  -> served at GET /
-        admin.html  -> served at GET /admin
         login.html  -> served at GET /login
-        app.js      -> moderator UI logic, calls /api/predict
         admin.js    -> admin UI logic, calls /api/health, /api/model-info, /api/monitoring/*
-        styles.css  -> shared styles
+
+    models/
+        wangchanberta_finetuned/ -> future BERT weights directory
 ```

@@ -46,7 +46,7 @@ Option B: Deploy LR baseline for the Phase 2 demo.
 - **Mitigation**: Human-in-the-loop design means wrong predictions are caught by the moderator. The system explicitly presents confidence scores so the moderator can judge reliability
 
 ### How to Upgrade
-Place fine-tuned WangchanBERTa weights in `models/wangchanberta_finetuned/`. The model service detects the artifact at startup and switches automatically. No code changes needed if the fallback mechanism described in the v2 architecture is implemented.
+Export the fine-tuned WangchanBERTa artifact and extend `src/thai_mod_api/model_service.py` to load transformer weights and run transformer inference. The current Phase 2 service does not switch automatically just because weights are present, although the API/UI can stay unchanged if that upgrade is added.
 
 ---
 

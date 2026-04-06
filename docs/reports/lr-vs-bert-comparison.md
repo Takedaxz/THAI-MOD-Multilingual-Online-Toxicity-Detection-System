@@ -214,7 +214,7 @@ WangchanBERTa should replace the LR baseline when:
 2. Deployment environment has GPU access (or CPU latency of 50-70ms is acceptable)
 3. RAM budget allows 1.5GB+ for the model service
 
-The model service architecture supports this swap via a fallback mechanism: BERT weights are loaded at startup if available; otherwise, LR is used automatically.
+The current Phase 2 model service does not yet auto-load BERT artifacts. Replacing the LR baseline with WangchanBERTa will require implementing transformer loading and inference in `src/thai_mod_api/model_service.py`, while keeping the existing API contract unchanged.
 
 ### 7.3 Hybrid Option
 
