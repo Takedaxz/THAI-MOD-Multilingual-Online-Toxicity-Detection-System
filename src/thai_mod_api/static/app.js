@@ -26,6 +26,21 @@ const healthStatus = document.getElementById("healthStatus");
 
 const recentHistory = [];
 
+async function ensureAnalyzerAccess() {
+  try {
+    const response = await fetch("/api/auth/me");
+    if (!response.ok) {
+      return;
+    }
+    const payload = await response.json();
+    if (payload.protect_analyzer && !payload.authenticated) {
+      window.location.assign("/login?next=/");
+    }
+  } catch (_error) {
+    // Ignore auth check failures; existing analyzer behavior should continue.
+  }
+}
+
 function setThresholdLabel() {
   const value = Number(thresholdInput.value).toFixed(2);
   thresholdValue.textContent = value;
@@ -205,4 +220,5 @@ document.querySelectorAll(".sample-button").forEach((button) => {
 
 setThresholdLabel();
 renderHistory();
+ensureAnalyzerAccess();
 loadSystemInfo();
