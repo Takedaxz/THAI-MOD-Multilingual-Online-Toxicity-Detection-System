@@ -34,13 +34,14 @@ Expected output: **all tests pass**, coverage ≥ 70 % on `src/thai_mod_api`.
 
 ## Test Structure
 
-```
+```text
 tests/
 ├── __init__.py
 ├── conftest.py            # Shared fixtures (mock API client)
 ├── test_preprocessing.py  # Unit: preprocess_text, _tokenize_text
 ├── test_dataset_prep.py   # Unit: _prepare_dataset, _load_full_dataset
-└── test_api.py            # Integration: /api/health, /api/predict
+├── test_api.py            # Integration: API contract, auth, monitoring endpoints
+└── test_monitoring_service.py  # Unit: MonitoringService summary and drift helpers
 ```
 
 ### `conftest.py` — Mock Model Bundle
@@ -110,7 +111,7 @@ Pydantic validation assertions:
 
 ## CI Pipeline (`.github/workflows/ci.yml`)
 
-```
+```text
 Trigger: push to any branch  OR  pull request to main
 
 Steps:
@@ -177,9 +178,9 @@ not automated tests.
 
 ## Presentation Talking Points
 
-1. **"We run 58 automated tests on every commit"** — preprocessing,
-   label mapping, and API contract tests covering all documented design
-   decisions from our progress reports.
+1. **"We run automated tests on every commit"** — preprocessing,
+   label mapping, API contract, auth, and monitoring tests covering documented
+   design decisions from our progress reports.
 
 2. **"Tests are fast and CI-friendly"** — mock bundle strategy means no
    training occurs; full suite completes in <60 seconds locally.

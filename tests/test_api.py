@@ -176,7 +176,7 @@ class TestPredictEndpoint:
         assert data["predicted_label"] in ("toxic", "non-toxic")
 
     def test_code_switched_text_processed(self, api_client: TestClient):
-        """Thai–English code-switching (progress2.txt §6.1 §3)."""
+        """Thai-English code-switching (progress2.txt §6.1 §3)."""
         data = api_client.post(
             "/api/predict", json={"text": "โคตร toxic เลย report มันไป"}
         ).json()

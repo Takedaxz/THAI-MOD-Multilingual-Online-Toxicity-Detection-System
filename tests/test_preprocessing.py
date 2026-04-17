@@ -115,7 +115,7 @@ class TestEdgeCases:
         assert result.strip() == ""
 
     def test_code_switching_does_not_crash(self):
-        """Thai–English code-switching is common in Thai social media."""
+        """Thai-English code-switching is common in Thai social media."""
         text = "โคตร toxic เลย report มันไป"
         result = ToxicityModelService.preprocess_text(text)
         assert isinstance(result, str)
