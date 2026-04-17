@@ -406,6 +406,8 @@ class ToxicityModelService:
     def _prepare_dataset(self, dataset_file: Path) -> pd.DataFrame:
         df = pd.read_csv(dataset_file).copy()
         df = df.dropna(subset=["category", "texts"])
+        if df.empty:
+            return pd.DataFrame(columns=["texts", "category", "source"])
         df["texts"] = df["texts"].apply(self.preprocess_text)
         df = df[df["texts"].str.strip() != ""].copy()
         df["category"] = df["category"].replace({"pos": "neu"})

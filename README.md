@@ -28,7 +28,6 @@ Current known gaps:
 - basic demo authentication is implemented (single demo account)
 - no deployed BERT inference in the web app yet
 - no formal monitoring dashboard backend yet
-- no automated tests yet
 
 ### Run
 
@@ -89,6 +88,15 @@ Then open:
 - `GET /api/admin/overview` (protected)
 - `POST /api/predict`
 - `POST /api/batch-predict`
+
+### Testing
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+pytest tests/ -v --cov=src/thai_mod_api --cov-report=term-missing
+```
+
+See `docs/testing-and-maintainability.md` for full details.
 
 See `docs/auth-flow.md` for presenter-friendly login/access-control flow.
 
