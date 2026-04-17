@@ -22,7 +22,7 @@ C4Container
         Container(api, "FastAPI Backend", "Python 3.11, FastAPI, Uvicorn", "REST API server with auth middleware and monitoring endpoints. Handles prediction requests, serves static UI, exposes health/model-info/monitoring APIs. Restricted CORS policy.")
         Container(auth_svc, "Auth Service", "Python, FastAPI dependencies", "Session/token-based authentication with role-based access control (moderator vs admin). Supports demo credentials for presentation.")
         Container(model_svc, "Model Service", "Python, PyTorch, Transformers, PyThaiNLP", "ToxicityModelService with WangchanBERTa inference. Loads fine-tuned transformer weights, GPU-accelerated when available, CPU fallback. Retains LR baseline as fallback if BERT artifact unavailable.")
-        Container(monitoring_svc, "Monitoring Service", "Python", "Tracks prediction metrics: request count, toxic/non-toxic ratio, avg toxicity score, avg text length, language mix. Detects data drift via statistical tests on input distribution shifts.")
+        Container(monitoring_svc, "Monitoring Service", "Python", "Extends the v1 metadata logger into a dashboard-backed monitoring service. Tracks request count, toxic/non-toxic ratio, avg toxicity score, avg text length, language mix, and drift tests.")
         Container(model_cache, "Model Artifacts", "Filesystem (PyTorch + JSON)", "Fine-tuned WangchanBERTa weights (~500MB) plus metadata. LR baseline artifact retained as fallback (~20MB).")
         Container(metrics_store, "Metrics Store", "JSON / SQLite", "Persistent storage for monitoring metrics, anonymized prediction logs, and drift detection history.")
         Container(datasets, "Training Datasets", "CSV files, Git LFS", "8 labeled datasets (~233k rows pre-dedup). Binary labels: toxic(1) / non-toxic(0). Used during training and retraining only.")
@@ -123,15 +123,15 @@ C4Container
 - **Default threshold**: 0.4
 
 ### Monitoring Service
-- **Responsibility**: Track system behavior and detect degradation
+- **Responsibility**: Track system behavior and detect degradation, building on the v1 metadata-only prediction logger
 - **Metrics tracked**:
   - Total prediction count
   - Toxic/non-toxic prediction ratio
   - Average toxicity score
   - Average text length
   - Language distribution (Thai / English / mixed)
-- **Drift detection**: Statistical tests comparing recent input distribution against training distribution
-- **Alerts**: Flags when metrics deviate beyond configured thresholds
+- **Drift detection**: Threshold monitoring for toxic rate/confidence bands, KS-style checks for text length distribution, chi-square-style checks for language mix, and production extensions such as PSI or Jensen-Shannon divergence for score distributions
+- **Alerts**: Flags when metrics deviate beyond configured thresholds; the system recommends human review/retraining but does not auto-retrain
 - **Storage**: Writes to Metrics Store
 
 ### Metrics Store

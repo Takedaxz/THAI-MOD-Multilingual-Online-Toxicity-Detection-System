@@ -14,7 +14,7 @@ C4Component
         Component(cache_mgr, "Cache Manager", "joblib + JSON", "Handles load/save of trained pipeline and metadata. Atomic writes via .tmp files. Checks for existing cache on startup.")
         Component(data_loader, "Dataset Loader", "pandas", "Reads 8 CSV datasets, applies per-file cleaning, deduplicates by text content, combines into unified DataFrame.")
         Component(label_mapper, "Label Mapper", "pandas", "Maps raw labels to binary: neg->toxic(1), pos/neu->non-toxic(0). Drops rows with unmappable labels.")
-        Component(preprocessor, "Text Preprocessor", "regex, emoji lib", "Cleans raw text: removes URLs, converts emojis to English text descriptions, lowercases ASCII characters. Static method, shared by training and inference.")
+        Component(preprocessor, "Shared Text Preprocessor", "src/thai_mod_api/text_processing.py", "Single preprocess_text() implementation used by both dataset preparation and online inference. Handles NaN, removes URLs, demojizes emojis, lowercases ASCII.")
         Component(tokenizer, "Thai Tokenizer", "PyThaiNLP newmm", "Word segmentation for Thai text using newmm dictionary-based engine. Produces token list for TF-IDF. Handles Thai+English mixed text.")
         Component(feature_ext, "TF-IDF Vectorizer", "scikit-learn TfidfVectorizer", "Converts tokenized text to TF-IDF sparse vectors. Config: unigram+bigram, min_df=3, max_features=20,000. Uses Thai Tokenizer as custom tokenizer callable.")
         Component(classifier, "Logistic Regression Classifier", "scikit-learn LogisticRegression", "Binary classifier with class_weight='balanced' to handle toxic/non-toxic imbalance. max_iter=1000, random_state=42.")
@@ -93,8 +93,8 @@ C4Component
   4. Remove www.* URLs via regex
   5. Convert emojis to English text descriptions via `emoji.demojize(text, language="en")`
   6. Lowercase ASCII characters only (Thai characters unchanged)
-- **Implementation**: Static method on `ToxicityModelService`
-- **Critical invariant**: Same function used in `_prepare_dataset()` (training) and `predict()` (inference)
+- **Implementation**: `preprocess_text()` in `src/thai_mod_api/text_processing.py`, exposed through `ToxicityModelService.preprocess_text()`
+- **Critical invariant**: `_prepare_dataset()` (training) and `predict()` (online inference) call the same shared implementation, preventing training-serving skew
 
 ### Thai Tokenizer
 - **Responsibility**: Word segmentation for Thai text

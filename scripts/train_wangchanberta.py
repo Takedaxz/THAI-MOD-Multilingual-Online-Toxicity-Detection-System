@@ -4,6 +4,7 @@ import argparse
 import gc
 import json
 import sys
+import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -41,6 +42,7 @@ MODEL_DIR = ROOT / "models" / "wangchanberta_finetuned"
 MODEL_ID = "airesearch/wangchanberta-base-att-spm-uncased"
 RANDOM_STATE = 42
 TEST_SIZE = 0.2
+PREPROCESSING_VERSION = "shared_preprocess_text_v1"
 
 
 @dataclass
@@ -183,6 +185,72 @@ def train_epoch(
     return total_loss / max(len(dataloader), 1)
 
 
+def log_mlflow_run(
+    args: argparse.Namespace,
+    runtime: RuntimeConfig,
+    df: pd.DataFrame,
+    metrics: dict[str, float | list[list[int]]],
+    history: list[dict[str, float | int]],
+    metadata: dict[str, object],
+) -> None:
+    try:
+        import mlflow
+    except ImportError:
+        return
+
+    try:
+        with mlflow.start_run(
+            run_name="thai-mod-wangchanberta",
+            nested=mlflow.active_run() is not None,
+        ):
+            mlflow.log_params(
+                {
+                    "model_name": metadata["model_name"],
+                    "model_type": "wangchanberta_transformer",
+                    "model_id": MODEL_ID,
+                    "dataset_rows": int(len(df)),
+                    "dataset_sources": ",".join(sorted(df["source"].unique().tolist())),
+                    "preprocessing_version": PREPROCESSING_VERSION,
+                    "random_state": RANDOM_STATE,
+                    "threshold": args.threshold,
+                    "learning_rate": args.learning_rate,
+                    "epochs": args.epochs,
+                    "warmup_steps": args.warmup_steps,
+                    "max_length": runtime.max_length,
+                    "batch_size": runtime.batch_size,
+                    "device": str(runtime.device),
+                }
+            )
+            mlflow.log_metrics(
+                {
+                    "accuracy": float(metrics["accuracy"]),
+                    "precision": float(metrics["precision"]),
+                    "recall": float(metrics["recall"]),
+                    "f1": float(metrics["f1_score"]),
+                    "f2": float(metrics["f2_score"]),
+                    "test_size": float(metrics["test_size"]),
+                }
+            )
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                metadata_path = Path(tmp_dir) / "wangchanberta_training_metadata.json"
+                history_path = Path(tmp_dir) / "wangchanberta_history.json"
+                confusion_path = Path(tmp_dir) / "wangchanberta_confusion_matrix.json"
+
+                with open(metadata_path, "w", encoding="utf-8") as file:
+                    json.dump(metadata, file, ensure_ascii=False, indent=2)
+                with open(history_path, "w", encoding="utf-8") as file:
+                    json.dump(history, file, ensure_ascii=False, indent=2)
+                with open(confusion_path, "w", encoding="utf-8") as file:
+                    json.dump(metrics["confusion_matrix"], file, indent=2)
+
+                mlflow.log_artifact(str(metadata_path))
+                mlflow.log_artifact(str(history_path))
+                mlflow.log_artifact(str(confusion_path))
+            mlflow.log_param("artifact_dir", str(MODEL_DIR))
+    except Exception:
+        return
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Fine-tune and export WangchanBERTa for THAI-MOD.")
     parser.add_argument("--epochs", type=int, default=3)
@@ -274,11 +342,14 @@ def main() -> None:
         "dataset_rows": int(len(df)),
         "dataset_sources": sorted(df["source"].unique().tolist()),
         "max_length": runtime.max_length,
+        "preprocessing_version": PREPROCESSING_VERSION,
         "metrics": metrics,
         "history": history,
     }
     with open(metadata_path, "w", encoding="utf-8") as file:
         json.dump(metadata, file, ensure_ascii=False, indent=2)
+
+    log_mlflow_run(args, runtime, df, metrics, history, metadata)
 
     print(f"Saved WangchanBERTa artifact to {MODEL_DIR}")
     print(json.dumps(metrics, indent=2))
