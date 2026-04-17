@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from .model_service import ToxicityModelService
+from .monitoring_service import MonitoringService
 from .schemas import (
     AuthStatusResponse,
     BatchPredictRequest,
@@ -25,6 +26,7 @@ from .schemas import (
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 model_service = ToxicityModelService(PROJECT_ROOT)
+monitoring_service = MonitoringService(PROJECT_ROOT, model_service.get_monitoring_baseline)
 
 
 def _load_dotenv(dotenv_path: Path) -> None:
@@ -88,6 +90,7 @@ def _require_api_auth(request: Request) -> None:
 async def lifespan(app: FastAPI):
     model_service.ensure_ready()
     app.state.model_service = model_service
+    app.state.monitoring_service = monitoring_service
     yield
 
 
@@ -180,11 +183,22 @@ async def model_info():
     return model_service.get_model_info()
 
 
+@app.get("/api/monitoring/summary")
+async def monitoring_summary():
+    return monitoring_service.get_summary()
+
+
+@app.get("/api/monitoring/drift")
+async def monitoring_drift():
+    return monitoring_service.get_drift_report()
+
+
 @app.post("/api/predict", response_model=PredictionResponse)
 async def predict(payload: PredictRequest, request: Request):
     if PROTECT_ANALYZER:
         _require_api_auth(request)
     result = model_service.predict(payload.text, payload.threshold)
+    monitoring_service.log_prediction(result)
     return result.__dict__
 
 
@@ -192,11 +206,14 @@ async def predict(payload: PredictRequest, request: Request):
 async def batch_predict(payload: BatchPredictRequest, request: Request):
     if PROTECT_ANALYZER:
         _require_api_auth(request)
-    predictions = [
-        model_service.predict(text, payload.threshold).__dict__
-        for text in payload.texts
-        if text.strip()
-    ]
+
+    predictions = []
+    for text in payload.texts:
+        if not text.strip():
+            continue
+        result = model_service.predict(text, payload.threshold)
+        monitoring_service.log_prediction(result)
+        predictions.append(result.__dict__)
     return {"predictions": predictions}
 
 

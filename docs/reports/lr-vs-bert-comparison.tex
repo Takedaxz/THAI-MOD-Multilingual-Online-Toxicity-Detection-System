@@ -1,0 +1,392 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{geometry}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{xcolor}
+\usepackage{colortbl}
+\usepackage{enumitem}
+\usepackage{array}
+\usepackage{multirow}
+
+\geometry{margin=2.5cm}
+\hypersetup{colorlinks=true, linkcolor=blue, citecolor=blue, urlcolor=blue}
+
+\title{%
+    \textbf{TF-IDF + Logistic Regression vs WangchanBERTa} \\[0.5em]
+    \large Model Comparison Report for THAI-MOD \\
+    Multilingual Online Toxicity Detection System
+}
+\author{THAI-MOD Team}
+\date{April 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This report compares the two primary model approaches evaluated in the THAI-MOD project:
+a traditional TF-IDF + Logistic Regression (Balanced) baseline and a fine-tuned WangchanBERTa
+transformer model. We analyze classification quality, inference latency, resource requirements,
+and practical deployment considerations. The comparison informs the decision to deploy the LR
+baseline in Phase 2 while retaining WangchanBERTa as the target production model.
+\end{abstract}
+
+\tableofcontents
+\clearpage
+
+% ============================================================
+\section{Introduction}
+
+THAI-MOD is a multilingual toxicity detection system designed to classify Thai, English, and
+code-switched text as toxic or non-toxic. The system serves as a decision-support tool for
+content moderators.
+
+Two model families were evaluated:
+\begin{enumerate}
+    \item \textbf{Traditional ML}: TF-IDF vectorization with classical classifiers (Logistic Regression, Linear SVC, XGBoost)
+    \item \textbf{Transformer}: Fine-tuned pre-trained language models (WangchanBERTa, PhayaThaiBERT, XLM-RoBERTa)
+\end{enumerate}
+
+This report focuses on the two leading candidates: \textbf{TF-IDF + Logistic Regression (Balanced)}
+(deployed baseline) and \textbf{WangchanBERTa} (selected research model).
+
+% ============================================================
+\section{Experimental Setup}
+
+\subsection{Dataset}
+\begin{itemize}[nosep]
+    \item 8 source datasets (5 Thai, 3 English), covering sentiment, toxicity, hate speech, and cyberbullying
+    \item Combined size: $\sim$233,931 rows pre-deduplication, $\sim$30,620 post-deduplication
+    \item Binary labels: toxic (1) / non-toxic (0)
+    \item Class distribution: 73.9\% non-toxic, 26.1\% toxic
+    \item Split: 80/20 stratified (random\_state=42)
+\end{itemize}
+
+\subsection{Preprocessing (shared)}
+Both models use identical text preprocessing:
+\begin{enumerate}[nosep]
+    \item Remove HTTP/HTTPS and www URLs via regex
+    \item Convert emojis to English text descriptions (emoji library)
+    \item Lowercase ASCII characters (Thai characters unchanged)
+\end{enumerate}
+
+\subsection{TF-IDF + Logistic Regression Configuration}
+\begin{itemize}[nosep]
+    \item Tokenizer: PyThaiNLP \texttt{word\_tokenize} (newmm engine)
+    \item TF-IDF: unigram + bigram, min\_df=3, max\_features=20,000
+    \item Classifier: Logistic Regression with \texttt{class\_weight='balanced'}, max\_iter=1000
+    \item Threshold: 0.4 (tuned for recall)
+\end{itemize}
+
+\subsection{WangchanBERTa Configuration}
+\begin{itemize}[nosep]
+    \item Base model: \texttt{airesearch/wangchanberta-base-att-spm-uncased} (RoBERTa-base, 125M params)
+    \item Tokenizer: CamembertTokenizer (SentencePiece)
+    \item Fine-tuning: AdamW optimizer, lr=2e-5, linear warmup, 3 epochs
+    \item Gradient clipping: max\_norm=1.0
+    \item max\_length: 128 (CUDA), 96 (MPS), 64 (CPU)
+    \item Training device: Apple MPS (M-series)
+\end{itemize}
+
+% ============================================================
+\section{Classification Quality}
+
+\subsection{Full Model Comparison}
+
+Table~\ref{tab:full-comparison} shows the evaluation results for all models tested in the project.
+
+\begin{table}[H]
+\centering
+\caption{Full model comparison on the THAI-MOD test set ($n = 6{,}124$)}
+\label{tab:full-comparison}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\textbf{Model} & \textbf{Accuracy} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} \\
+\midrule
+\rowcolor{blue!8}
+WangchanBERTa               & \textbf{0.891} & 0.800 & 0.775 & \textbf{0.787} \\
+PhayaThaiBERT                & 0.889 & 0.804 & 0.760 & 0.782 \\
+XLM-RoBERTa                  & 0.865 & 0.775 & 0.678 & 0.723 \\
+\midrule
+Linear SVC (Balanced)        & 0.840 & 0.780 & 0.800 & 0.790 \\
+\rowcolor{green!8}
+Logistic Regression (Balanced) & 0.830 & 0.780 & \textbf{0.810} & 0.790 \\
+Linear SVC (Oversampled)     & 0.830 & 0.790 & 0.790 & 0.790 \\
+LogReg (Threshold 0.3)       & 0.820 & 0.770 & 0.810 & 0.780 \\
+LogReg (Threshold 0.4)       & 0.840 & 0.790 & 0.790 & 0.790 \\
+LogReg (Threshold 0.5)       & 0.840 & 0.810 & 0.740 & 0.760 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textit{Blue row}: WangchanBERTa (selected research model). \textit{Green row}: LR Balanced (deployed baseline).
+
+\subsection{Head-to-Head: LR Baseline vs WangchanBERTa}
+
+\begin{table}[H]
+\centering
+\caption{Direct comparison: deployed baseline vs selected model}
+\label{tab:head-to-head}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Metric} & \textbf{TF-IDF + LR (Balanced)} & \textbf{WangchanBERTa} \\
+\midrule
+Accuracy        & 0.830 & \textbf{0.891} (+6.1pp) \\
+Precision       & 0.780 & 0.800 (+2.0pp) \\
+Recall (toxic)  & \textbf{0.810} & 0.775 (-3.5pp) \\
+F1-score        & 0.790 & \textbf{0.787} ($\approx$) \\
+Macro F1        & $\sim$0.79 & \textbf{0.857} (+6.7pp) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Key Observations}
+
+\begin{enumerate}
+    \item \textbf{Accuracy}: WangchanBERTa leads by +6.1 percentage points (89.1\% vs 83.0\%).
+          This is a substantial improvement driven by better non-toxic classification.
+
+    \item \textbf{Toxic Recall}: LR (Balanced) actually achieves higher raw toxic recall (0.81 vs 0.775).
+          This is because \texttt{class\_weight='balanced'} aggressively upweights the toxic class,
+          and the TF-IDF representation is biased toward toxic keywords.
+
+    \item \textbf{Macro F1}: WangchanBERTa's macro F1 (0.857) is significantly higher than LR ($\sim$0.79),
+          indicating more balanced performance across both classes. LR achieves high toxic recall
+          at the cost of more false positives on non-toxic content.
+
+    \item \textbf{Precision}: WangchanBERTa is slightly more precise (0.80 vs 0.78), meaning fewer
+          false alarms for moderators.
+
+    \item \textbf{Context understanding}: WangchanBERTa handles sarcasm, slang, code-switching, and
+          ambiguous language significantly better than TF-IDF (qualitative observation from error analysis).
+\end{enumerate}
+
+% ============================================================
+\section{Inference Performance}
+
+\subsection{Latency Comparison}
+
+Latency measurements are from external benchmarks on architecturally equivalent models
+(RoBERTa-base for WangchanBERTa; scikit-learn TF-IDF+LR pipeline).
+No latency profiling was performed within the THAI-MOD notebooks.
+
+\begin{table}[H]
+\centering
+\caption{Inference latency per request}
+\label{tab:latency}
+\begin{tabular}{@{}llcc@{}}
+\toprule
+\textbf{Model} & \textbf{Hardware} & \textbf{Latency (ms)} & \textbf{Throughput (req/s)} \\
+\midrule
+TF-IDF + LR & CPU (any)        & 0.5--1    & $\sim$1,000 \\
+\midrule
+WangchanBERTa & CPU (8-core)   & 45--70    & 15--20 \\
+WangchanBERTa & Apple MPS (M2) & 8--15     & 70--120 \\
+WangchanBERTa & GPU (T4)       & 3--5      & 200--300 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Speed Ratio}
+
+\begin{table}[H]
+\centering
+\caption{How many times slower WangchanBERTa is compared to TF-IDF + LR}
+\label{tab:speed-ratio}
+\begin{tabular}{@{}lc@{}}
+\toprule
+\textbf{WangchanBERTa Hardware} & \textbf{Slowdown Factor vs LR (CPU)} \\
+\midrule
+CPU (8-core) & 50--100$\times$ slower \\
+Apple MPS    & 10--20$\times$ slower \\
+GPU (T4)     & 3--7$\times$ slower \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Latency Analysis}
+
+For real-time moderation where a moderator submits one comment at a time:
+\begin{itemize}[nosep]
+    \item LR latency ($<$1ms) is imperceptible to the user
+    \item BERT on GPU (3--5ms) is also imperceptible
+    \item BERT on CPU (45--70ms) is noticeable but acceptable for async moderation queues
+    \item BERT on CPU is \textbf{not suitable} for high-throughput synchronous pipelines ($>$100 req/s)
+\end{itemize}
+
+% ============================================================
+\section{Resource Requirements}
+
+\begin{table}[H]
+\centering
+\caption{Resource comparison}
+\label{tab:resources}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Dimension} & \textbf{TF-IDF + LR} & \textbf{WangchanBERTa} \\
+\midrule
+Model file size        & 5--20 MB     & $\sim$500 MB \\
+RAM at inference       & 50--200 MB   & 1.3--1.5 GB \\
+Cold-start time        & $<$1 s       & 6--15 s \\
+GPU required?          & No           & Recommended \\
+Python dependencies    & scikit-learn, PyThaiNLP & + PyTorch, Transformers \\
+Parameters             & $\sim$20K features & $\sim$125M parameters \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Resource Analysis}
+
+\begin{enumerate}
+    \item \textbf{Model size}: WangchanBERTa is $\sim$25--100$\times$ larger on disk.
+          This impacts container image size and download time for deployment.
+
+    \item \textbf{RAM}: WangchanBERTa requires $\sim$7--10$\times$ more RAM at runtime.
+          A free-tier cloud instance (512MB--1GB RAM) cannot run BERT but handles LR easily.
+
+    \item \textbf{Cold-start}: WangchanBERTa takes 6--15 seconds to load weights into memory.
+          This makes serverless/on-demand deployment impractical without model warming.
+          LR loads in under 1 second.
+
+    \item \textbf{GPU dependency}: WangchanBERTa inference without GPU is viable but 50--100$\times$
+          slower. For production throughput, GPU is effectively required.
+\end{enumerate}
+
+% ============================================================
+\section{Qualitative Comparison}
+
+\subsection{Strengths of TF-IDF + LR}
+\begin{itemize}[nosep]
+    \item Extremely fast inference on any hardware
+    \item No GPU dependency; runs on minimal resources
+    \item High toxic recall when using \texttt{class\_weight='balanced'}
+    \item Interpretable: TF-IDF feature weights can be inspected directly
+    \item Instant cold-start; suitable for serverless deployment
+    \item Simple to debug and maintain
+\end{itemize}
+
+\subsection{Weaknesses of TF-IDF + LR}
+\begin{itemize}[nosep]
+    \item Bag-of-words representation: no understanding of word order or context
+    \item Struggles with sarcasm, irony, and implicit toxicity (e.g., ``the country will have nothing left'')
+    \item Cannot handle novel slang or misspellings not in the training vocabulary
+    \item Code-switching handled at token level only (no cross-language context)
+    \item Higher false positive rate due to keyword sensitivity
+\end{itemize}
+
+\subsection{Strengths of WangchanBERTa}
+\begin{itemize}[nosep]
+    \item Bidirectional contextual understanding of full sentences
+    \item Pre-trained on Thai social media text: understands Thai-specific patterns
+    \item Subword tokenization handles unknown words and misspellings gracefully
+    \item Better at sarcasm, implicit toxicity, and ambiguous language
+    \item Code-switching handled naturally through shared subword vocabulary
+    \item Significantly higher accuracy and macro F1
+\end{itemize}
+
+\subsection{Weaknesses of WangchanBERTa}
+\begin{itemize}[nosep]
+    \item 50--100$\times$ slower on CPU; GPU recommended for production
+    \item 500MB model size; 1.3--1.5GB RAM required
+    \item 6--15 second cold-start; unsuitable for serverless
+    \item Less interpretable than TF-IDF (black-box attention mechanism)
+    \item Mild overfitting observed (val loss increased at epoch 3)
+    \item Requires PyTorch + Transformers dependencies ($\sim$2GB installed)
+\end{itemize}
+
+% ============================================================
+\section{Deployment Recommendation}
+
+\subsection{Current Decision: Deploy LR Baseline}
+
+For the Phase 2 prototype and course demonstration, \textbf{TF-IDF + Logistic Regression (Balanced)}
+is deployed. This decision is driven by:
+
+\begin{enumerate}[nosep]
+    \item No exported BERT artifact available at time of Phase 2 development
+    \item Demo reliability: instant startup, no GPU dependency
+    \item Acceptable baseline performance (83\% accuracy, 81\% toxic recall)
+    \item Human-in-the-loop design absorbs model errors
+\end{enumerate}
+
+\subsection{Future Target: WangchanBERTa}
+
+WangchanBERTa should replace the LR baseline when:
+\begin{enumerate}[nosep]
+    \item A fine-tuned artifact is exported and validated
+    \item Deployment environment has GPU access (or CPU latency of 50--70ms is acceptable)
+    \item RAM budget allows 1.5GB+ for the model service
+\end{enumerate}
+
+The current Phase 2 model service does not yet auto-load BERT artifacts.
+Replacing the LR baseline with WangchanBERTa will require implementing
+transformer loading and inference in \texttt{src/thai\_mod\_api/model\_service.py},
+while keeping the existing API contract unchanged.
+
+\subsection{Hybrid Option}
+
+A potential middle ground for resource-constrained environments:
+\begin{itemize}[nosep]
+    \item Use LR for real-time synchronous moderation (sub-millisecond response)
+    \item Use WangchanBERTa for async batch review (background processing of flagged content)
+    \item This provides LR speed for immediate response and BERT accuracy for final decisions
+\end{itemize}
+
+% ============================================================
+\section{Summary}
+
+\begin{table}[H]
+\centering
+\caption{Final comparison summary}
+\label{tab:summary}
+\begin{tabular}{@{}p{4cm}cc@{}}
+\toprule
+\textbf{Criterion} & \textbf{TF-IDF + LR} & \textbf{WangchanBERTa} \\
+\midrule
+Accuracy               & 83.0\% & \textbf{89.1\%} \\
+Toxic Recall           & \textbf{81.0\%} & 77.5\% \\
+Macro F1               & $\sim$79\% & \textbf{85.7\%} \\
+Inference (CPU)        & \textbf{$<$1ms} & 45--70ms \\
+Inference (GPU)        & N/A & \textbf{3--5ms} \\
+Model Size             & \textbf{$\sim$20MB} & $\sim$500MB \\
+RAM Usage              & \textbf{$\sim$200MB} & $\sim$1.5GB \\
+Context Understanding  & None (bag-of-words) & \textbf{Full (attention)} \\
+Sarcasm/Slang          & Weak & \textbf{Strong} \\
+Code-switching         & Moderate & \textbf{Strong} \\
+Interpretability       & \textbf{High} & Low \\
+Deployment Simplicity  & \textbf{Trivial} & Complex \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Bottom line}: WangchanBERTa is the better model for production toxicity detection,
+offering +6pp accuracy and significantly better context understanding. TF-IDF + LR is the
+better choice for prototyping, demos, and resource-constrained environments, with competitive
+toxic recall and near-zero infrastructure requirements.
+
+% ============================================================
+\section*{Data Sources and Limitations}
+
+\begin{itemize}[nosep]
+    \item Classification metrics are from the THAI-MOD project notebooks (\texttt{model.ipynb}, \texttt{thai-bert.ipynb})
+    \item Latency and resource figures are from external benchmarks, not measured within THAI-MOD:
+    \begin{itemize}[nosep]
+        \item Teyssier (2021), ``BERT inference cost/performance analysis CPU vs GPU''
+        \item Jakovljevic (2023), ``BERT inference throughput deathmatch''
+        \item Nature Scientific Reports (2025), Table 13: BERT/RoBERTa inference benchmarks
+    \end{itemize}
+    \item WangchanBERTa toxic recall is estimated from macro F1 (per-class recall not saved in notebook)
+    \item Val loss increase at epoch 3 suggests mild overfitting; 3 epochs may not be optimal
+    \item All comparisons use the same test set ($n = 6{,}124$) and preprocessing pipeline
+\end{itemize}
+
+\end{document}
