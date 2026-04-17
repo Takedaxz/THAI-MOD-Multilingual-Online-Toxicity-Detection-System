@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>THAI-MOD Login</title>
+    <link rel="stylesheet" href="/static/styles.css?v=20260404-1" />
+  </head>
+  <body class="login-page">
+    <main class="login-shell">
+      <section class="login-card">
+        <p class="eyebrow">THAI-MOD</p>
+        <h1>Moderator Login</h1>
+        <p class="login-copy">
+          Basic access control for demo presentation. Sign in to open protected moderator/admin pages.
+        </p>
+
+        <form id="loginForm" class="login-form">
+          <label class="input-label" for="usernameInput">Username</label>
+          <input id="usernameInput" type="text" autocomplete="username" required />
+
+          <label class="input-label" for="passwordInput">Password</label>
+          <input id="passwordInput" type="password" autocomplete="current-password" required />
+
+          <button id="loginButton" class="primary-button" type="submit">Sign in</button>
+          <p id="loginError" class="login-error hidden" role="alert"></p>
+        </form>
+      </section>
+    </main>
+
+    <script src="/static/login.js?v=20260404-1"></script>
+  </body>
+</html>

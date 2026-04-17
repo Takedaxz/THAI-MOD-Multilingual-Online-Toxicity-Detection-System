@@ -55,7 +55,7 @@ MOCK_BUNDLE: dict = {
 
 
 @pytest.fixture(scope="session")
-def api_client() -> TestClient:
+def api_client(tmp_path_factory: pytest.TempPathFactory) -> TestClient:
     """
     Provide a FastAPI TestClient with the model bundle pre-injected.
 
@@ -66,6 +66,9 @@ def api_client() -> TestClient:
 
     # Inject bundle BEFORE TestClient enters context so ensure_ready() is a no-op
     main_module.model_service.bundle = MOCK_BUNDLE
+    monitoring_dir = tmp_path_factory.mktemp("monitoring")
+    main_module.monitoring_service.monitoring_dir = monitoring_dir
+    main_module.monitoring_service.log_path = monitoring_dir / "prediction_logs.jsonl"
 
     with TestClient(main_module.app) as client:
         yield client

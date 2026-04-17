@@ -275,15 +275,10 @@ False positives คือกรณีที่ข้อความทั่ว�
 โครงการนี้ใช้ GitHub ในการจัดการเวอร์ชันของโค้ด ช่วยติดตามการเปลี่ยนแปลงของ preprocessing, training pipeline และ evaluation รวมถึงช่วยให้สมาชิกในทีมทำงานร่วมกันได้สะดวก
 
 5.4 Experiment Tracking
-ในการพัฒนาโมเดล มีการบันทึกผลการทดลองแต่ละครั้งเพื่อใช้เปรียบเทียบและปรับปรุงโมเดล โดยข้อมูลที่บันทึกประกอบด้วย
-model metrics เช่น accuracy, precision หรือ F1-score
-
-
-hyperparameters ที่ใช้ในการฝึกโมเดล เช่น learning rate หรือ batch size
-
-
-ผลลัพธ์ของการทดลอง ของแต่ละรอบการ train
-ข้อมูลเหล่านี้ช่วยให้สามารถ เปรียบเทียบผลการทดลองแต่ละแบบและเลือกโมเดลที่ให้ผลลัพธ์ดีที่สุด สำหรับนำไปใช้งานจริง.
+โครงการนี้ใช้ MLflow สำหรับ experiment tracking ในขั้นตอน model training และ evaluation เพื่อให้การทดลองแต่ละรอบสามารถเปรียบเทียบและ reproduce ได้ชัดเจนขึ้น โดยบันทึกข้อมูลสำคัญ เช่น model type, dataset rows, dataset sources, preprocessing version, random seed, threshold, hyperparameters และ metrics
+สำหรับ baseline model ระบบจะ log ค่า TF-IDF settings เช่น ngram range, min_df, max_features และ Logistic Regression setting เช่น class_weight รวมถึง metrics ได้แก่ accuracy, precision, recall, F1, F2 และ confusion matrix
+สำหรับ WangchanBERTa training script ระบบจะ log learning rate, epochs, warmup steps, max sequence length, batch size, device, metrics และ model artifact directory
+การใช้ MLflow ทำให้สามารถเปรียบเทียบ Logistic Regression, Linear SVC, XGBoost และ transformer models ได้เป็นระบบมากขึ้น และช่วยให้ทีมเลือก model ที่เหมาะกับ production โดยดู recall/F2 ร่วมกับ precision และ false positive risk
 
 6. Data Shift และ Monitoring 
 6.1 ความเป็นไปได้ของ Data Distribution Shift
@@ -333,6 +328,16 @@ Metric นี้ใช้ดูการกระจายตัวของ con
 หาก Recall เพิ่มขึ้นอย่างผิดปกติ ก็อาจเป็นสัญญาณว่าระบบเริ่ม flag ข้อความจำนวนมากขึ้นเกินไป ซึ่งอาจทำให้ False Positive เพิ่มขึ้น และเพิ่มภาระให้ทีม moderator ดังนั้นควรตรวจสอบร่วมกับค่า Precision เพื่อดูว่าประสิทธิภาพของโมเดลยังสมดุลอยู่หรือไม่
 เนื่องจากการปล่อยข้อความ Toxic หลุดไป (False Negative) สามารถสร้างผลกระทบต่อผู้ใช้และชุมชนได้มากกว่าการบล็อกข้อความที่ไม่เป็นอันตราย (False Positive)
 
+6.3 Drift Detection Techniques
+ระบบเพิ่ม lightweight monitoring service สำหรับ online inference โดยเก็บเฉพาะ prediction metadata และไม่เก็บ raw text เพื่อ privacy ข้อมูลที่เก็บประกอบด้วย timestamp, toxic score, predicted label, confidence, threshold, text length, language type และ source model
+เทคนิคที่ใช้ในระบบปัจจุบันเป็น threshold-based drift detection ที่เหมาะกับ demo และ early warning ได้แก่
+1. Toxic rate shift: เปรียบเทียบสัดส่วนข้อความที่ถูกทำนายว่า toxic ใน production กับ baseline จาก training dataset หากต่างเกิน threshold จะ flag warning
+2. Text length shift: ใช้ค่าเฉลี่ยความยาวข้อความเป็น KS-style proxy เพื่อตรวจว่าข้อความ production สั้นหรือยาวกว่าข้อมูล training มากผิดปกติหรือไม่
+3. Language distribution shift: ใช้ chi-square-style proxy เปรียบเทียบสัดส่วนภาษา Thai / English / Mixed / Other ระหว่าง production และ training data
+4. Uncertain prediction rate: ตรวจสัดส่วน prediction ที่ toxic score อยู่ช่วง 0.4-0.6 เพราะช่วงนี้แสดงว่า model ไม่มั่นใจ และอาจเกิดจาก slang, code-switching หรือรูปแบบ toxic language ใหม่
+ใน production version สามารถขยายด้วย Population Stability Index (PSI) หรือ Jensen-Shannon divergence เพื่อตรวจ score distribution drift แบบละเอียดขึ้น และควรใช้ moderator-labeled sample เป็นระยะเพื่อตรวจ performance drift เช่น recall และ precision จริง
+เมื่อระบบพบ drift จะส่งสถานะ warning ผ่าน monitoring endpoint/dashboard เพื่อให้ system administrator หรือทีม ML ตรวจสอบ ไม่ได้ auto-retrain โมเดลทันที การ retrain เป็น human-in-the-loop process โดยทีมต้อง review sample ใหม่, label เพิ่ม, retrain offline, evaluate เทียบกับ model เดิม และ deploy เฉพาะเมื่อ performance ดีขึ้น
+
 7. Deployment และ Prediction Mode
 7.1 Prediction Mode
 ระบบถูกออกแบบให้ใช้ online prediction เนื่องจากระบบมีหน้าที่ตรวจจับ toxic comment ทันทีหลังจากที่ผู้ใช้โพสต์ข้อความ หากใช้การประมวลผลแบบ real-time จะช่วยให้ระบบสามารถตรวจจับและจัดการข้อความที่ไม่เหมาะสมได้รวดเร็ว ลดโอกาสที่ข้อความที่เป็นอันตรายจะถูกเผยแพร่ต่อผู้ใช้คนอื่น นอกจากนี้ online prediction ยังช่วยให้สามารถตอบสนองต่อผู้ใช้ได้ทันที ทำให้ระบบ moderation มีประสิทธิภาพมากขึ้น
@@ -373,6 +378,5 @@ Section 3
 Monitoring concept
 เพิ่ม drift detection
 Section 6
-
 
 

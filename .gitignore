@@ -4,4 +4,9 @@
 anan.md
 models
 .omc
-src/thai_mod_api/__pycache__
+.env
+__pycache__/
+*.py[cod]
+.coverage
+.coverage.*
+htmlcov/

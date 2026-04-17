@@ -1,4 +1,6 @@
 const adminHealthBadge = document.getElementById("adminHealthBadge");
+const adminUserBadge = document.getElementById("adminUserBadge");
+const logoutButton = document.getElementById("logoutButton");
 const adminModelName = document.getElementById("adminModelName");
 const adminDeploymentMode = document.getElementById("adminDeploymentMode");
 const adminCacheStatus = document.getElementById("adminCacheStatus");
@@ -84,17 +86,18 @@ function renderConfusionMatrix(matrix) {
 
 async function loadAdminData() {
   try {
-    const [healthResponse, modelInfoResponse] = await Promise.all([
-      fetch("/api/health"),
-      fetch("/api/model-info"),
-    ]);
-
-    if (!healthResponse.ok || !modelInfoResponse.ok) {
+    const response = await fetch("/api/admin/overview");
+    if (!response.ok) {
+      if (response.status === 401) {
+        window.location.assign("/login?next=/admin");
+        return;
+      }
       throw new Error("Unable to load admin data");
     }
 
-    const health = await healthResponse.json();
-    const info = await modelInfoResponse.json();
+    const payload = await response.json();
+    const health = payload.health;
+    const info = payload.model_info;
 
     adminHealthBadge.textContent = "API online";
     adminHealthBadge.className = "pill pill-highlight";
@@ -127,4 +130,39 @@ async function loadAdminData() {
   }
 }
 
-loadAdminData();
+async function loadSession() {
+  try {
+    const response = await fetch("/api/auth/me");
+    if (!response.ok) {
+      throw new Error(`Session check failed (${response.status})`);
+    }
+    const payload = await response.json();
+    if (!payload.authenticated) {
+      window.location.assign("/login?next=/admin");
+      return false;
+    }
+    adminUserBadge.textContent = `User: ${payload.username || "moderator"}`;
+    return true;
+  } catch (error) {
+    window.location.assign("/login?next=/admin");
+    return false;
+  }
+}
+
+async function logout() {
+  logoutButton.disabled = true;
+  logoutButton.textContent = "Logging out...";
+  try {
+    await fetch("/api/auth/logout", { method: "POST" });
+  } finally {
+    window.location.assign("/login");
+  }
+}
+
+logoutButton.addEventListener("click", logout);
+
+loadSession().then((ok) => {
+  if (ok) {
+    loadAdminData();
+  }
+});

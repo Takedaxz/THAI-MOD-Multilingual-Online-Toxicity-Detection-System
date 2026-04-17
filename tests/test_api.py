@@ -18,7 +18,6 @@ Coverage rationale (progress2.txt §7 Deployment):
 
 from __future__ import annotations
 
-import pytest
 from fastapi.testclient import TestClient
 
 
@@ -187,3 +186,86 @@ class TestPredictEndpoint:
         original = "สวัสดีครับ Hello"
         data = api_client.post("/api/predict", json={"text": original}).json()
         assert data["text"] == original
+
+
+class TestAuthEndpoints:
+    """Exercise the demo session-auth flow added for the moderator UI."""
+
+    def test_me_reports_unauthenticated_after_logout(self, api_client: TestClient):
+        api_client.post("/api/auth/logout")
+        data = api_client.get("/api/auth/me").json()
+        assert data == {
+            "authenticated": False,
+            "username": None,
+            "protect_analyzer": False,
+        }
+
+    def test_admin_redirects_when_logged_out(self, api_client: TestClient):
+        api_client.post("/api/auth/logout")
+        response = api_client.get("/admin", follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["location"] == "/login?next=/admin"
+
+    def test_login_rejects_bad_credentials(self, api_client: TestClient):
+        response = api_client.post(
+            "/api/auth/login",
+            json={"username": "moderator", "password": "wrong"},
+        )
+        assert response.status_code == 401
+
+    def test_login_accepts_demo_credentials_and_sanitizes_next(self, api_client: TestClient):
+        response = api_client.post(
+            "/api/auth/login",
+            json={
+                "username": "moderator",
+                "password": "thai-mod-demo-2026",
+                "next_path": "//evil.example/path",
+            },
+        )
+        assert response.status_code == 200
+        assert response.json()["next_path"] == "/admin"
+
+    def test_admin_overview_requires_login(self, api_client: TestClient):
+        api_client.post("/api/auth/logout")
+        response = api_client.get("/api/admin/overview")
+        assert response.status_code == 401
+
+    def test_admin_overview_returns_model_info_after_login(self, api_client: TestClient):
+        api_client.post(
+            "/api/auth/login",
+            json={"username": "moderator", "password": "thai-mod-demo-2026"},
+        )
+        data = api_client.get("/api/admin/overview").json()
+        assert data["health"]["status"] == "ok"
+        assert data["model_info"]["model_name"]
+
+    def test_protected_predict_requires_auth_when_enabled(self, api_client: TestClient):
+        import src.thai_mod_api.main as main_module
+
+        api_client.post("/api/auth/logout")
+        original = main_module.PROTECT_ANALYZER
+        main_module.PROTECT_ANALYZER = True
+        try:
+            response = api_client.post("/api/predict", json={"text": "test"})
+        finally:
+            main_module.PROTECT_ANALYZER = original
+
+        assert response.status_code == 401
+
+
+class TestMonitoringEndpoints:
+    """Cover monitoring endpoints without relying on persistent local logs."""
+
+    def test_monitoring_summary_shape(self, api_client: TestClient):
+        data = api_client.get("/api/monitoring/summary").json()
+        assert "total_predictions" in data
+        assert "language_distribution" in data
+        assert "log_path" in data
+
+    def test_monitoring_drift_report_shape(self, api_client: TestClient):
+        for text in ["hello", "สวัสดี", "ไทย toxic", "123", "another comment"]:
+            api_client.post("/api/predict", json={"text": text})
+
+        data = api_client.get("/api/monitoring/drift").json()
+        assert data["status"] in ("ok", "warning", "insufficient_data")
+        assert "checks" in data
