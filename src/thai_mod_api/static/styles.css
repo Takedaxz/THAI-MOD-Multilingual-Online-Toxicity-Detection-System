@@ -59,6 +59,55 @@ body::before {
   background-size: 32px 32px;
 }
 
+.login-page {
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.login-shell {
+  width: min(100%, 460px);
+}
+
+.login-card {
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  background: rgba(10, 16, 29, 0.9);
+  padding: 28px;
+}
+
+.login-card h1 {
+  margin: 8px 0 0;
+  font-family: var(--font-display);
+}
+
+.login-copy {
+  margin-top: 10px;
+  color: var(--muted-strong);
+  line-height: 1.6;
+}
+
+.login-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.login-form input {
+  min-height: 46px;
+  border: 1px solid var(--border);
+  background: rgba(16, 24, 42, 0.92);
+  color: var(--text);
+  padding: 10px 12px;
+}
+
+.login-error {
+  margin: 0;
+  color: var(--risk);
+  font-family: var(--font-mono);
+  font-size: 0.84rem;
+}
+
 button,
 input,
 textarea {
@@ -417,6 +466,11 @@ input[type="range"] {
   border: 1px solid var(--border);
   cursor: pointer;
   transition: transform 160ms ease, background 160ms ease, border-color 160ms ease, opacity 160ms ease;
+}
+
+.auth-logout-button {
+  min-height: 34px;
+  padding: 0 12px;
 }
 
 .primary-button {

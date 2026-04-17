@@ -1,0 +1,35 @@
+{
+  "model_name": "TF-IDF + Logistic Regression (Balanced)",
+  "deployment_mode": "cached_startup_baseline",
+  "dataset_rows": 233559,
+  "dataset_sources": [
+    "dataset1.csv",
+    "dataset2.csv",
+    "dataset3.csv",
+    "dataset4.csv",
+    "dataset5.csv",
+    "dataset6.csv",
+    "dataset7.csv",
+    "dataset8.csv"
+  ],
+  "preprocessing_version": "shared_preprocess_text_v1",
+  "metrics": {
+    "accuracy": 0.9183293372152765,
+    "precision": 0.7723837874971377,
+    "recall": 0.9239408327246165,
+    "f1_score": 0.8413919261630566,
+    "f2_score": 0.8890509409759441,
+    "confusion_matrix": [
+      [
+        32778,
+        2982
+      ],
+      [
+        833,
+        10119
+      ]
+    ],
+    "test_size": 46712,
+    "uncertain_rate": 0.04990152423360164
+  }
+}

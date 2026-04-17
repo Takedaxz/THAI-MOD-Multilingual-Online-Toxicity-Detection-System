@@ -52,7 +52,7 @@ The repository does not contain historical production traffic, so the reference 
 The current reference baseline is generated as:
 
 - deterministic holdout built from all `8` project datasets
-- preprocess-aligned deduplication on `preprocessed_text`
+- preprocess-aligned deduplication on `processed_text`
 - up to `100` samples per dataset
 - deterministic sampling with seed `42`
 - current total sample count = `800`
@@ -93,6 +93,14 @@ Stored fields:
 - `predicted_label`
 
 The raw comment text is not stored in the monitoring log.
+
+## Admin access
+
+The admin page and monitoring endpoints use the app's session-based admin login:
+
+- configure `THAI_MOD_AUTH_USERNAME`, `THAI_MOD_AUTH_PASSWORD`, and `THAI_MOD_SESSION_SECRET`
+- sign in through `/login` before opening `/admin`
+- `/api/monitoring` and `/api/monitoring/reset` require an authenticated session
 
 ## Recent monitoring window
 
@@ -138,10 +146,10 @@ The reference profile artifact also stores:
 
 In the current generated profile, the observed language mix is approximately:
 
-- `thai_only 51.88%`
-- `english_only 37.62%`
-- `mixed_script 10.50%`
-- `other 0.00%`
+- `thai_only 55.00%`
+- `english_only 37.50%`
+- `mixed_script 7.25%`
+- `other 0.25%`
 
 ## Primary data drift
 

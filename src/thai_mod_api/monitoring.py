@@ -121,13 +121,14 @@ def _score_processed_texts(service: ToxicityModelService, processed_texts: list[
 
 
 def _summarize_reference_batch(service: ToxicityModelService, batch_frame: pd.DataFrame) -> dict[str, Any]:
+    raw_texts = batch_frame["texts"].astype(str).tolist()
     processed_texts = batch_frame["texts"].astype(str).map(service.preprocess_text).tolist()
     probabilities, predicted_labels = _score_processed_texts(service, processed_texts)
     return _summarize_processed_values(
-        language_buckets=[_text_character_profile(text)["language_bucket"] for text in processed_texts],
+        language_buckets=[_text_character_profile(text)["language_bucket"] for text in raw_texts],
         toxic_scores=probabilities,
         predicted_labels=predicted_labels,
-        text_lengths=np.array([len(text) for text in processed_texts], dtype=float),
+        text_lengths=np.array([len(text) for text in raw_texts], dtype=float),
     )
 
 
@@ -333,26 +334,30 @@ class RecentRequestMonitor:
     def ensure_reference_profile(self, service: ToxicityModelService) -> None:
         if self._reference_profile_cache is None:
             if self.reference_profile_path.exists():
-                self._reference_profile_cache = load_reference_profile_artifact(self.reference_profile_path)
-            else:
-                reference_frame = _load_batch_file(self.reference_batch_path)
-                summary = _summarize_reference_batch(service, reference_frame)
-                self._reference_profile_cache = {
-                    **summary,
-                    "profile_name": "reference_batch_fallback",
-                    "profile_version": "fallback",
-                    "sample_count": int(summary["prediction_count"]),
-                    "language_bucket_counts": {
-                        bucket: int(count)
-                        for bucket, count in summary["_language_bucket_counts"].items()
-                    },
-                }
+                try:
+                    self._reference_profile_cache = load_reference_profile_artifact(self.reference_profile_path)
+                    return
+                except (OSError, ValueError, json.JSONDecodeError):
+                    pass
+
+            reference_frame = _load_batch_file(self.reference_batch_path)
+            summary = _summarize_reference_batch(service, reference_frame)
+            self._reference_profile_cache = {
+                **summary,
+                "profile_name": "reference_batch_fallback",
+                "profile_version": "fallback",
+                "sample_count": int(summary["prediction_count"]),
+                "language_bucket_counts": {
+                    bucket: int(count)
+                    for bucket, count in summary["_language_bucket_counts"].items()
+                },
+            }
 
     def _build_event(self, result: PredictionResult) -> dict[str, Any]:
-        profile = _text_character_profile(result.processed_text)
+        profile = _text_character_profile(result.text)
         return {
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "text_length": len(result.processed_text),
+            "text_length": len(result.text),
             "english_char_ratio": round(float(profile["english_char_ratio"]), 4),
             "language_bucket": profile["language_bucket"],
             "toxicity_score": round(float(result.toxic_score), 4),
@@ -385,8 +390,11 @@ class RecentRequestMonitor:
         return events
 
     def clear(self) -> int:
-        cleared = self.total_logged_requests()
         with self._lock:
+            if not self.log_path.exists():
+                return 0
+            with open(self.log_path, "r", encoding="utf-8") as file:
+                cleared = sum(1 for line in file if line.strip())
             self.log_path.write_text("", encoding="utf-8")
         return cleared
 

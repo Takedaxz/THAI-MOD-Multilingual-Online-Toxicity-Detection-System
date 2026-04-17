@@ -12,6 +12,7 @@ nbformat
 notebook
 ipykernel
 joblib
+mlflow
 torch
 transformers
 tqdm

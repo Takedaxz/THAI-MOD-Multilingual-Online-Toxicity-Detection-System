@@ -13,6 +13,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.thai_mod_api.model_service import ToxicityModelService
 from src.thai_mod_api.monitoring import (
+    DEFAULT_REFERENCE_BATCH_PATH,
     build_reference_profile_artifact,
     default_reference_batch_path,
     default_reference_profile_path,
@@ -68,7 +69,7 @@ def main() -> None:
 
     generation_details = {
         "seed": RANDOM_SEED,
-        "deduplicate_on": "preprocessed_text",
+        "deduplicate_on": "processed_text",
         "sampling_strategy": "all_source_capped_holdout",
         "max_samples_per_dataset": MAX_SAMPLES_PER_DATASET,
         "source_datasets": DATASET_FILES,
@@ -87,7 +88,7 @@ def main() -> None:
         profile_name=PROFILE_NAME,
         profile_version=PROFILE_VERSION,
         generation_details=generation_details,
-        reference_batch_path=reference_batch_path,
+        reference_batch_path=DEFAULT_REFERENCE_BATCH_PATH,
     )
 
     reference_batch.to_csv(reference_batch_path, index=False, encoding="utf-8")
