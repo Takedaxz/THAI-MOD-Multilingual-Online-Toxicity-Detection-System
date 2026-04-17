@@ -1,0 +1,71 @@
+{
+  "profile_name": "thai_mod_all_sources_reference_v2",
+  "profile_version": "v2",
+  "generated_at": "2026-04-17T10:43:49.678760+00:00",
+  "sample_count": 800,
+  "prediction_count": 800,
+  "language_mix": {
+    "thai_only": 0.55,
+    "english_only": 0.375,
+    "mixed_script": 0.0725,
+    "other": 0.0025
+  },
+  "psi_reference_distribution": {
+    "thai_only": 0.55,
+    "english_only": 0.375,
+    "mixed_script": 0.0725,
+    "other": 0.0025
+  },
+  "language_bucket_counts": {
+    "thai_only": 440,
+    "english_only": 300,
+    "mixed_script": 58,
+    "other": 2
+  },
+  "average_text_length": 152.85,
+  "toxic_ratio": 0.5275,
+  "average_toxicity_score": 0.4988,
+  "source_counts": {
+    "dataset1.csv": 100,
+    "dataset2.csv": 100,
+    "dataset3.csv": 100,
+    "dataset4.csv": 100,
+    "dataset5.csv": 100,
+    "dataset6.csv": 100,
+    "dataset7.csv": 100,
+    "dataset8.csv": 100
+  },
+  "reference_batch_path": "datasets/monitoring/reference_batch.csv",
+  "generation_details": {
+    "seed": 42,
+    "deduplicate_on": "processed_text",
+    "sampling_strategy": "all_source_capped_holdout",
+    "max_samples_per_dataset": 100,
+    "source_datasets": [
+      "dataset1.csv",
+      "dataset2.csv",
+      "dataset3.csv",
+      "dataset4.csv",
+      "dataset5.csv",
+      "dataset6.csv",
+      "dataset7.csv",
+      "dataset8.csv"
+    ],
+    "source_counts": {
+      "dataset1.csv": 100,
+      "dataset2.csv": 100,
+      "dataset3.csv": 100,
+      "dataset4.csv": 100,
+      "dataset5.csv": 100,
+      "dataset6.csv": 100,
+      "dataset7.csv": 100,
+      "dataset8.csv": 100
+    },
+    "rationale": "No historical production traffic exists in the repository. This fixed baseline is generated from all eight project datasets with a per-source cap to prevent the largest datasets from dominating the reference profile. The final language mix is the observed result of that reproducible sampling process, not a manually fixed Thai/English ratio."
+  },
+  "model_context": {
+    "model_name": "Word + Character TF-IDF + Logistic Regression (Balanced)",
+    "deployment_mode": "cached_startup_baseline",
+    "default_threshold": 0.4
+  }
+}

@@ -11,7 +11,8 @@ from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from .model_service import ToxicityModelService
+from .model_service import PredictionResult, ToxicityModelService
+from .monitoring import RecentRequestMonitor
 from .monitoring_service import MonitoringService
 from .schemas import (
     AuthStatusResponse,
@@ -27,6 +28,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 model_service = ToxicityModelService(PROJECT_ROOT)
 monitoring_service = MonitoringService(PROJECT_ROOT, model_service.get_monitoring_baseline)
+request_monitor = RecentRequestMonitor(PROJECT_ROOT)
 
 
 def _load_dotenv(dotenv_path: Path) -> None:
@@ -86,10 +88,24 @@ def _require_api_auth(request: Request) -> None:
         raise HTTPException(status_code=401, detail="Authentication required")
 
 
+def _record_prediction(result: PredictionResult) -> None:
+    try:
+        monitoring_service.log_prediction(result)
+    except OSError:
+        pass
+
+    try:
+        request_monitor.record_prediction(result)
+    except OSError:
+        pass
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     model_service.ensure_ready()
     app.state.model_service = model_service
+    request_monitor.ensure_reference_profile(model_service)
+    app.state.request_monitor = request_monitor
     app.state.monitoring_service = monitoring_service
     yield
 
@@ -183,8 +199,25 @@ async def model_info():
     return model_service.get_model_info()
 
 
+@app.get("/api/monitoring")
+async def monitoring_summary(request: Request):
+    _require_api_auth(request)
+    return request_monitor.build_monitoring_summary(model_service)
+
+
+@app.post("/api/monitoring/reset")
+async def reset_monitoring_window(request: Request):
+    _require_api_auth(request)
+    cleared = request_monitor.clear()
+    return {
+        "status": "ok",
+        "cleared_requests": cleared,
+        "window_capacity": request_monitor.recent_window_size,
+    }
+
+
 @app.get("/api/monitoring/summary")
-async def monitoring_summary():
+async def monitoring_log_summary():
     return monitoring_service.get_summary()
 
 
@@ -198,7 +231,7 @@ async def predict(payload: PredictRequest, request: Request):
     if PROTECT_ANALYZER:
         _require_api_auth(request)
     result = model_service.predict(payload.text, payload.threshold)
-    monitoring_service.log_prediction(result)
+    _record_prediction(result)
     return result.__dict__
 
 
@@ -212,7 +245,7 @@ async def batch_predict(payload: BatchPredictRequest, request: Request):
         if not text.strip():
             continue
         result = model_service.predict(text, payload.threshold)
-        monitoring_service.log_prediction(result)
+        _record_prediction(result)
         predictions.append(result.__dict__)
     return {"predictions": predictions}
 
