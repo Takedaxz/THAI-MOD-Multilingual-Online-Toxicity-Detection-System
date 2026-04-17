@@ -3,6 +3,18 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 
+class LoginRequest(BaseModel):
+    username: str = Field(..., min_length=1, max_length=100)
+    password: str = Field(..., min_length=1, max_length=200)
+    next_path: Optional[str] = Field(default=None, max_length=200)
+
+
+class AuthStatusResponse(BaseModel):
+    authenticated: bool
+    username: Optional[str] = None
+    protect_analyzer: bool = False
+
+
 class PredictRequest(BaseModel):
     text: str = Field(..., min_length=1, description="Comment text to classify")
     threshold: Optional[float] = Field(default=None, ge=0.0, le=1.0)
@@ -26,4 +38,3 @@ class PredictionResponse(BaseModel):
 
 class BatchPredictionResponse(BaseModel):
     predictions: List[PredictionResponse]
-
