@@ -71,6 +71,7 @@ class TestPredictEndpoint:
     def test_response_contains_all_required_fields(self, api_client: TestClient):
         data = api_client.post("/api/predict", json={"text": "test"}).json()
         required = {
+            "request_id",
             "text",
             "processed_text",
             "predicted_label",
@@ -83,6 +84,10 @@ class TestPredictEndpoint:
         assert required.issubset(data.keys()), (
             f"Missing fields: {required - data.keys()}"
         )
+
+    def test_request_id_is_non_empty(self, api_client: TestClient):
+        data = api_client.post("/api/predict", json={"text": "test"}).json()
+        assert data["request_id"]
 
     # --- Value ranges ---
 
@@ -239,6 +244,95 @@ class TestAuthEndpoints:
         assert data["health"]["status"] == "ok"
         assert data["model_info"]["model_name"]
 
+    def test_model_update_status_requires_login(self, api_client: TestClient):
+        api_client.post("/api/auth/logout")
+        response = api_client.get("/api/admin/model-update/status")
+        assert response.status_code == 401
+
+    def test_model_update_train_endpoint_starts_script_job(self, api_client: TestClient, monkeypatch):
+        import src.thai_mod_api.main as main_module
+
+        def fake_start(kind: str):
+            return {
+                "status": "running",
+                "kind": kind,
+                "log_path": "models/model_update_jobs/fake.log",
+            }
+
+        monkeypatch.setattr(main_module, "_start_model_update_job", fake_start)
+        api_client.post(
+            "/api/auth/login",
+            json={"username": "moderator", "password": "thai-mod-demo-2026"},
+        )
+
+        data = api_client.post("/api/admin/model-update/train-candidate").json()
+
+        assert data["status"] == "running"
+        assert data["kind"] == "train-bert-candidate"
+
+    def test_model_update_promote_endpoint_starts_script_job(self, api_client: TestClient, monkeypatch):
+        import src.thai_mod_api.main as main_module
+
+        def fake_start(kind: str):
+            return {
+                "status": "running",
+                "kind": kind,
+                "log_path": "models/model_update_jobs/fake.log",
+            }
+
+        monkeypatch.setattr(main_module, "_start_model_update_job", fake_start)
+        api_client.post(
+            "/api/auth/login",
+            json={"username": "moderator", "password": "thai-mod-demo-2026"},
+        )
+
+        data = api_client.post("/api/admin/model-update/promote-candidate").json()
+
+        assert data["status"] == "running"
+        assert data["kind"] == "promote-bert-candidate"
+
+    def test_model_update_lr_train_endpoint_starts_script_job(self, api_client: TestClient, monkeypatch):
+        import src.thai_mod_api.main as main_module
+
+        def fake_start(kind: str):
+            return {
+                "status": "running",
+                "kind": kind,
+                "log_path": "models/model_update_jobs/fake.log",
+            }
+
+        monkeypatch.setattr(main_module, "_start_model_update_job", fake_start)
+        api_client.post(
+            "/api/auth/login",
+            json={"username": "moderator", "password": "thai-mod-demo-2026"},
+        )
+
+        data = api_client.post("/api/admin/model-update/train-lr-candidate").json()
+
+        assert data["status"] == "running"
+        assert data["kind"] == "train-lr-candidate"
+
+    def test_model_update_lr_promote_endpoint_starts_script_job(self, api_client: TestClient, monkeypatch):
+        import src.thai_mod_api.main as main_module
+
+        def fake_start(kind: str):
+            return {
+                "status": "running",
+                "kind": kind,
+                "log_path": "models/model_update_jobs/fake.log",
+            }
+
+        monkeypatch.setattr(main_module, "_start_model_update_job", fake_start)
+        api_client.post(
+            "/api/auth/login",
+            json={"username": "moderator", "password": "thai-mod-demo-2026"},
+        )
+
+        data = api_client.post("/api/admin/model-update/promote-lr-candidate").json()
+
+        assert data["status"] == "running"
+        assert data["kind"] == "promote-lr-candidate"
+
     def test_protected_predict_requires_auth_when_enabled(self, api_client: TestClient):
         import src.thai_mod_api.main as main_module
 
@@ -251,6 +345,52 @@ class TestAuthEndpoints:
             main_module.PROTECT_ANALYZER = original
 
         assert response.status_code == 401
+
+
+class TestReviewedExamples:
+    def test_reviewed_examples_summary_requires_login(self, api_client: TestClient):
+        api_client.post("/api/auth/logout")
+        response = api_client.get("/api/reviewed-examples/summary")
+        assert response.status_code == 401
+
+    def test_save_reviewed_example_requires_login(self, api_client: TestClient):
+        api_client.post("/api/auth/logout")
+        response = api_client.post(
+            "/api/reviewed-examples",
+            json={
+                "request_id": "abc",
+                "text": "example",
+                "reviewed_label": "neg",
+            },
+        )
+        assert response.status_code == 401
+
+    def test_save_reviewed_example_updates_summary(self, api_client: TestClient):
+        api_client.post(
+            "/api/auth/login",
+            json={"username": "moderator", "password": "thai-mod-demo-2026"},
+        )
+        prediction = api_client.post("/api/predict", json={"text": "อี loser"}).json()
+
+        response = api_client.post(
+            "/api/reviewed-examples",
+            json={
+                "request_id": prediction["request_id"],
+                "text": prediction["text"],
+                "reviewed_label": "neg",
+                "predicted_label": prediction["predicted_label"],
+                "toxicity_score": prediction["toxic_score"],
+                "source_model": prediction["source_model"],
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "saved"
+        assert data["reviewed_count"] >= 1
+
+        summary = api_client.get("/api/reviewed-examples/summary").json()
+        assert summary["reviewed_count"] == data["reviewed_count"]
 
 
 class TestMonitoringEndpoints:
@@ -269,3 +409,22 @@ class TestMonitoringEndpoints:
         data = api_client.get("/api/monitoring/drift").json()
         assert data["status"] in ("ok", "warning", "insufficient_data")
         assert "checks" in data
+
+    def test_monitoring_events_requires_auth(self, api_client: TestClient):
+        api_client.post("/api/auth/logout")
+        response = api_client.get("/api/monitoring/events")
+        assert response.status_code == 401
+
+    def test_monitoring_events_shows_recent_metadata_after_login(self, api_client: TestClient):
+        api_client.post(
+            "/api/auth/login",
+            json={"username": "moderator", "password": "thai-mod-demo-2026"},
+        )
+        api_client.post("/api/predict", json={"text": "ไทย toxic"})
+
+        data = api_client.get("/api/monitoring/events?limit=1").json()
+
+        assert data["returned_count"] == 1
+        assert data["events"][0]["language_bucket"] == "mixed_script"
+        assert "toxicity_score" in data["events"][0]
+        assert "text" not in data["events"][0]

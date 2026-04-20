@@ -26,6 +26,7 @@ class BatchPredictRequest(BaseModel):
 
 
 class PredictionResponse(BaseModel):
+    request_id: str
     text: str
     processed_text: str
     predicted_label: str
@@ -38,3 +39,18 @@ class PredictionResponse(BaseModel):
 
 class BatchPredictionResponse(BaseModel):
     predictions: List[PredictionResponse]
+
+
+class ReviewedExampleRequest(BaseModel):
+    request_id: str = Field(..., min_length=1, max_length=100)
+    text: str = Field(..., min_length=1, max_length=5000)
+    reviewed_label: str = Field(..., pattern="^(neg|neu)$")
+    predicted_label: Optional[str] = Field(default=None, max_length=20)
+    toxicity_score: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    source_model: Optional[str] = Field(default=None, max_length=200)
+
+
+class ReviewedExampleResponse(BaseModel):
+    status: str
+    reviewed_count: int
+    path: str

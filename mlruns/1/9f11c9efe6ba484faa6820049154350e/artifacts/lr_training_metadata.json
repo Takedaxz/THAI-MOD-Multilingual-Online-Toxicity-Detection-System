@@ -1,0 +1,37 @@
+{
+  "model_name": "Word + Character TF-IDF + Logistic Regression (Balanced)",
+  "deployment_mode": "cached_startup_baseline",
+  "dataset_rows": 233561,
+  "dataset_sources": [
+    "dataset1.csv",
+    "dataset2.csv",
+    "dataset3.csv",
+    "dataset4.csv",
+    "dataset5.csv",
+    "dataset6.csv",
+    "dataset7.csv",
+    "dataset8.csv",
+    "reviewed_traffic"
+  ],
+  "preprocessing_version": "shared_preprocess_text_v1",
+  "model_config_version": "lr_word_char_tfidf_v2",
+  "metrics": {
+    "accuracy": 0.9332091708946118,
+    "precision": 0.8105471847739889,
+    "recall": 0.9332542001460921,
+    "f1_score": 0.8675833969951617,
+    "f2_score": 0.9058279272572584,
+    "confusion_matrix": [
+      [
+        33372,
+        2389
+      ],
+      [
+        731,
+        10221
+      ]
+    ],
+    "test_size": 46713,
+    "uncertain_rate": 0.038790058441975465
+  }
+}

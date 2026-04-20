@@ -38,7 +38,9 @@ if str(ROOT) not in sys.path:
 from src.thai_mod_api.text_processing import preprocess_text
 
 DATASET_FILES = [ROOT / "datasets" / f"dataset{i}.csv" for i in range(1, 9)]
+REVIEWED_DATASET_PATH = ROOT / "models" / "reviewed" / "reviewed_comments.csv"
 MODEL_DIR = ROOT / "models" / "wangchanberta_finetuned"
+DEFAULT_CANDIDATE_DIR = ROOT / "models" / "candidates" / "wangchanberta_candidate"
 MODEL_ID = "airesearch/wangchanberta-base-att-spm-uncased"
 RANDOM_STATE = 42
 TEST_SIZE = 0.2
@@ -99,6 +101,21 @@ def load_full_dataset() -> pd.DataFrame:
         df["category"] = df["category"].astype(int)
         df["source"] = dataset_file.name
         frames.append(df[["texts", "category", "source"]])
+
+    if REVIEWED_DATASET_PATH.exists():
+        reviewed = pd.read_csv(REVIEWED_DATASET_PATH).copy()
+        if "texts" in reviewed.columns and "category" in reviewed.columns:
+            reviewed = reviewed.dropna(subset=["category", "texts"])
+            reviewed["texts"] = reviewed["texts"].apply(preprocess_text)
+            reviewed = reviewed[reviewed["texts"].str.strip() != ""].copy()
+            reviewed["category"] = reviewed["category"].replace({"pos": "neu"})
+            reviewed["category"] = reviewed["category"].map({"neg": 1, "neu": 0})
+            reviewed = reviewed.dropna(subset=["category"]).copy()
+            reviewed["category"] = reviewed["category"].astype(int)
+            if "source" not in reviewed.columns:
+                reviewed["source"] = "reviewed_traffic"
+            reviewed["source"] = reviewed["source"].fillna("reviewed_traffic").astype(str)
+            frames.append(reviewed[["texts", "category", "source"]])
 
     combined = pd.concat(frames, ignore_index=True)
     return combined.drop_duplicates(subset=["texts"], keep="first").reset_index(drop=True)
@@ -192,6 +209,7 @@ def log_mlflow_run(
     metrics: dict[str, float | list[list[int]]],
     history: list[dict[str, float | int]],
     metadata: dict[str, object],
+    artifact_dir: Path,
 ) -> None:
     try:
         import mlflow
@@ -246,7 +264,7 @@ def log_mlflow_run(
                 mlflow.log_artifact(str(metadata_path))
                 mlflow.log_artifact(str(history_path))
                 mlflow.log_artifact(str(confusion_path))
-            mlflow.log_param("artifact_dir", str(MODEL_DIR))
+            mlflow.log_param("artifact_dir", str(artifact_dir))
     except Exception:
         return
 
@@ -257,12 +275,27 @@ def main() -> None:
     parser.add_argument("--threshold", type=float, default=0.4)
     parser.add_argument("--learning-rate", type=float, default=2e-5)
     parser.add_argument("--warmup-steps", type=int, default=100)
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=MODEL_DIR,
+        help=(
+            "Directory where the trained artifact is written. Use "
+            f"{DEFAULT_CANDIDATE_DIR} for candidate retraining before promotion."
+        ),
+    )
+    parser.add_argument(
+        "--candidate",
+        action="store_true",
+        help=f"Write to {DEFAULT_CANDIDATE_DIR} instead of the deployed app artifact.",
+    )
     parser.add_argument("--force", action="store_true", help="Retrain even if a saved artifact exists.")
     args = parser.parse_args()
 
-    metadata_path = MODEL_DIR / "metadata.json"
-    if MODEL_DIR.exists() and metadata_path.exists() and not args.force:
-        print(f"Artifact already exists at {MODEL_DIR}. Use --force to retrain.")
+    output_dir = DEFAULT_CANDIDATE_DIR if args.candidate else args.output_dir
+    metadata_path = output_dir / "metadata.json"
+    if output_dir.exists() and metadata_path.exists() and not args.force:
+        print(f"Artifact already exists at {output_dir}. Use --force to retrain.")
         return
 
     runtime = detect_runtime_config()
@@ -329,9 +362,9 @@ def main() -> None:
     final_eval = evaluate(model, test_loader, runtime.device, args.threshold)
     metrics = compute_metrics(final_eval["labels"], final_eval["predictions"])
 
-    MODEL_DIR.mkdir(parents=True, exist_ok=True)
-    model.save_pretrained(MODEL_DIR)
-    tokenizer.save_pretrained(MODEL_DIR)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    model.save_pretrained(output_dir)
+    tokenizer.save_pretrained(output_dir)
 
     metadata = {
         "model_name": "WangchanBERTa",
@@ -349,9 +382,9 @@ def main() -> None:
     with open(metadata_path, "w", encoding="utf-8") as file:
         json.dump(metadata, file, ensure_ascii=False, indent=2)
 
-    log_mlflow_run(args, runtime, df, metrics, history, metadata)
+    log_mlflow_run(args, runtime, df, metrics, history, metadata, output_dir)
 
-    print(f"Saved WangchanBERTa artifact to {MODEL_DIR}")
+    print(f"Saved WangchanBERTa artifact to {output_dir}")
     print(json.dumps(metrics, indent=2))
 
     if runtime.device.type == "cuda":

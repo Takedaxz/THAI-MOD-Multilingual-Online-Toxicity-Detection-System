@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>THAI-MOD Admin Portal</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260406-5" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260418-2" />
   </head>
   <body class="admin-page">
     <div class="app-shell">
@@ -192,9 +192,111 @@
             </article>
           </div>
 
-          <div class="admin-endpoints" id="monitoringMetricsGrid"></div>
-          <div class="admin-endpoints" id="monitoringLanguageMixGrid"></div>
+          <div class="admin-endpoints monitoring-details-grid" id="monitoringDetailsGrid"></div>
+          <div class="monitoring-log-panel">
+            <div class="monitoring-log-heading">
+              <div>
+                <span class="micro-label">Event log</span>
+                <strong id="monitoringLogPath">-</strong>
+              </div>
+              <span id="monitoringLogCount">-</span>
+            </div>
+            <div class="monitoring-log-table-wrap">
+              <table class="monitoring-log-table">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Language</th>
+                    <th>Label</th>
+                    <th>Score</th>
+                    <th>Length</th>
+                  </tr>
+                </thead>
+                <tbody id="monitoringEventsTable">
+                  <tr>
+                    <td colspan="5">No events loaded yet.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
           <p class="monitoring-footnote" id="monitoringGeneratedAt">Manual refresh against the latest logged requests.</p>
+        </section>
+
+        <section class="stream-panel panel admin-panel">
+          <div class="panel-heading">
+            <p class="eyebrow">Model_Update</p>
+            <h3>Retraining controls</h3>
+            <p class="panel-copy">
+              Run the existing candidate-training and promotion scripts from the dashboard.
+            </p>
+          </div>
+
+          <div class="model-update-layout">
+            <div class="model-update-actions">
+              <span class="model-update-group-label">Fast LR demo path</span>
+              <button type="button" class="monitoring-control-button" id="trainLrCandidateButton">
+                Train LR candidate
+              </button>
+              <button type="button" class="monitoring-control-button monitoring-control-button-muted" id="promoteLrCandidateButton">
+                Promote LR candidate
+              </button>
+              <span class="model-update-group-label">BERT offline path</span>
+              <button type="button" class="monitoring-control-button" id="trainCandidateButton">
+                Train BERT candidate
+              </button>
+              <button type="button" class="monitoring-control-button monitoring-control-button-muted" id="promoteCandidateButton">
+                Promote BERT candidate
+              </button>
+              <button type="button" class="monitoring-control-button monitoring-control-button-muted" id="refreshModelUpdateButton">
+                Refresh status
+              </button>
+            </div>
+
+            <div class="model-update-status">
+              <div class="reviewed-summary-grid">
+                <div class="system-item">
+                  <span>Reviewed examples</span>
+                  <strong id="reviewedExamplesCount">-</strong>
+                </div>
+                <div class="system-item">
+                  <span>Reviewed data path</span>
+                  <strong id="reviewedExamplesPath">-</strong>
+                </div>
+              </div>
+
+              <div class="model-update-status-head">
+                <div>
+                  <span class="micro-label">Job status</span>
+                  <strong id="modelUpdateStatus">Idle</strong>
+                </div>
+                <span id="modelUpdateKind">-</span>
+              </div>
+
+              <div class="admin-endpoints model-update-meta">
+                <div class="system-item">
+                  <span>Started</span>
+                  <strong id="modelUpdateStarted">-</strong>
+                </div>
+                <div class="system-item">
+                  <span>Finished</span>
+                  <strong id="modelUpdateFinished">-</strong>
+                </div>
+                <div class="system-item">
+                  <span>Return code</span>
+                  <strong id="modelUpdateReturnCode">-</strong>
+                </div>
+                <div class="system-item">
+                  <span>Log file</span>
+                  <strong id="modelUpdateLogPath">-</strong>
+                </div>
+              </div>
+
+              <p class="monitoring-footnote" id="modelUpdateMessage">
+                Retraining reads reviewed examples when moderators save human labels.
+              </p>
+            </div>
+          </div>
         </section>
 
         <section class="stream-panel panel admin-panel">
@@ -225,14 +327,38 @@
               <strong>GET /api/monitoring</strong>
             </div>
             <div class="system-item">
+              <span>Monitoring events</span>
+              <strong>GET /api/monitoring/events</strong>
+            </div>
+            <div class="system-item">
               <span>Clear recent log</span>
               <strong>POST /api/monitoring/reset</strong>
+            </div>
+            <div class="system-item">
+              <span>Model update status</span>
+              <strong>GET /api/admin/model-update/status</strong>
+            </div>
+            <div class="system-item">
+              <span>Train BERT candidate</span>
+              <strong>POST /api/admin/model-update/train-candidate</strong>
+            </div>
+            <div class="system-item">
+              <span>Promote BERT candidate</span>
+              <strong>POST /api/admin/model-update/promote-candidate</strong>
+            </div>
+            <div class="system-item">
+              <span>Train LR candidate</span>
+              <strong>POST /api/admin/model-update/train-lr-candidate</strong>
+            </div>
+            <div class="system-item">
+              <span>Promote LR candidate</span>
+              <strong>POST /api/admin/model-update/promote-lr-candidate</strong>
             </div>
           </div>
         </section>
       </main>
     </div>
 
-    <script src="/static/admin.js?v=20260406-5"></script>
+    <script src="/static/admin.js?v=20260418-2"></script>
   </body>
 </html>

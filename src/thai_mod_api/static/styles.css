@@ -625,6 +625,42 @@ input[type="range"] {
   color: var(--muted-strong);
 }
 
+.review-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid rgba(112, 199, 255, 0.22);
+  background: rgba(8, 14, 26, 0.74);
+}
+
+.review-panel strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 1rem;
+}
+
+.review-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.review-button {
+  min-height: 40px;
+  padding: 0 12px;
+}
+
+.review-status {
+  margin: 0;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  line-height: 1.5;
+}
+
 .score-grid,
 .micro-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -900,6 +936,15 @@ pre {
   gap: 12px;
 }
 
+.admin-page .monitoring-details-grid {
+  align-items: stretch;
+  margin-top: 12px;
+}
+
+.admin-page .monitoring-details-grid .system-item {
+  min-height: 86px;
+}
+
 .monitoring-controls {
   display: flex;
   flex-wrap: wrap;
@@ -968,6 +1013,72 @@ pre {
   line-height: 1.5;
 }
 
+.monitoring-log-panel {
+  margin-top: 14px;
+}
+
+.monitoring-log-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 10px;
+  color: var(--muted-strong);
+}
+
+.monitoring-log-heading strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.monitoring-log-heading span:last-child {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+}
+
+.monitoring-log-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  max-width: 100%;
+}
+
+.monitoring-log-table {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+  background: rgba(8, 14, 26, 0.74);
+}
+
+.monitoring-log-table th,
+.monitoring-log-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(58, 67, 88, 0.72);
+  text-align: left;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.monitoring-log-table th {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+}
+
+.monitoring-log-table td {
+  color: var(--muted-strong);
+}
+
+.monitoring-log-table tbody tr:hover {
+  background: rgba(77, 142, 255, 0.06);
+}
+
 .monitoring-emphasis[data-status="collecting_data"] {
   color: #8fd0ff;
 }
@@ -986,6 +1097,90 @@ pre {
 
 .monitoring-emphasis[data-status="degraded"] {
   color: var(--risk);
+}
+
+.model-update-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.34fr) minmax(0, 0.66fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.model-update-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.model-update-group-label {
+  margin-top: 6px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.model-update-group-label:first-child {
+  margin-top: 0;
+}
+
+.model-update-actions .monitoring-control-button {
+  width: 100%;
+  justify-content: center;
+}
+
+.model-update-status {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  background: rgba(8, 14, 26, 0.74);
+}
+
+.reviewed-summary-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.36fr) minmax(0, 0.64fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.model-update-status-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.model-update-status-head strong {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--font-display);
+  font-size: clamp(1.35rem, 2.4vw, 2rem);
+  line-height: 1;
+}
+
+.model-update-status-head strong[data-status="running"] {
+  color: #8fd0ff;
+}
+
+.model-update-status-head strong[data-status="completed"] {
+  color: var(--safe);
+}
+
+.model-update-status-head strong[data-status="failed"] {
+  color: var(--risk);
+}
+
+.model-update-status-head > span {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+}
+
+.model-update-meta {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .history-table-wrap {
@@ -1085,7 +1280,9 @@ pre {
   }
 
   .admin-page .admin-metrics-list,
-  .admin-page .admin-endpoints {
+  .admin-page .admin-endpoints,
+  .model-update-layout,
+  .reviewed-summary-grid {
     grid-template-columns: 1fr;
   }
 
