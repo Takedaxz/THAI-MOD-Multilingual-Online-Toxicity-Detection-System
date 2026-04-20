@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -387,7 +388,27 @@ async def monitoring_drift():
 @app.get("/api/admin/model-update/status")
 async def model_update_status(request: Request):
     _require_api_auth(request)
-    return _refresh_model_update_job()
+    job = _refresh_model_update_job().copy()
+    
+    candidates = {}
+    for kind, path, filename in [
+        ("lr", "lr_candidate", "thai_mod_baseline.metadata.json"),
+        ("bert", "wangchanberta_candidate", "metadata.json"),
+    ]:
+        meta_path = PROJECT_ROOT / "models" / "candidates" / path / filename
+        if meta_path.exists():
+            try:
+                with open(meta_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    candidates[kind] = {
+                        "trained_at": data.get("trained_at"),
+                        "metrics": data.get("metrics"),
+                    }
+            except Exception:
+                pass
+                
+    job["candidates"] = candidates
+    return job
 
 
 @app.post("/api/admin/model-update/train-candidate")

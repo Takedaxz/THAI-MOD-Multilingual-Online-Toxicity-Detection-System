@@ -450,16 +450,54 @@ function renderModelUpdateStatus(job) {
     modelUpdateMessage.textContent = "Script is running in the background. Refresh status to check progress.";
     setModelUpdateButtonsDisabled(true);
     refreshModelUpdateButton.disabled = false;
-    return;
+  } else {
+    setModelUpdateButtonsDisabled(false);
+    if (status === "completed") {
+      modelUpdateMessage.textContent = "Script completed successfully. Restart the app after promotion to load a promoted model.";
+    } else if (status === "failed") {
+      modelUpdateMessage.textContent = "Script failed. Check the log file shown above.";
+    } else {
+      modelUpdateMessage.textContent = "Retraining is manual because new labels require moderator review.";
+    }
   }
 
-  setModelUpdateButtonsDisabled(false);
-  if (status === "completed") {
-    modelUpdateMessage.textContent = "Script completed successfully. Restart the app after promotion to load a promoted model.";
-  } else if (status === "failed") {
-    modelUpdateMessage.textContent = "Script failed. Check the log file shown above.";
-  } else {
-    modelUpdateMessage.textContent = "Retraining is manual because new labels require moderator review.";
+  const candBox = document.getElementById("candidateMetricsContainer");
+  const candLrF1 = document.getElementById("candLrF1");
+  const candLrRecall = document.getElementById("candLrRecall");
+  const candBertF1 = document.getElementById("candBertF1");
+  const candBertRecall = document.getElementById("candBertRecall");
+  const candidates = job?.candidates || {};
+
+  if (candBox) {
+    if (Object.keys(candidates).length > 0) {
+      candBox.style.display = "flex";
+      
+      if (candidates.lr && candidates.lr.metrics) {
+        candLrF1.textContent = formatPercent(candidates.lr.metrics.f1_score);
+        candLrRecall.textContent = formatPercent(candidates.lr.metrics.recall);
+        candLrF1.style.color = "var(--text-primary)";
+        candLrRecall.style.color = "var(--text-primary)";
+      } else {
+        candLrF1.textContent = "Not trained";
+        candLrRecall.textContent = "Not trained";
+        candLrF1.style.color = "var(--text-muted)";
+        candLrRecall.style.color = "var(--text-muted)";
+      }
+      
+      if (candidates.bert && candidates.bert.metrics) {
+        candBertF1.textContent = formatPercent(candidates.bert.metrics.f1_score);
+        candBertRecall.textContent = formatPercent(candidates.bert.metrics.recall);
+        candBertF1.style.color = "var(--text-primary)";
+        candBertRecall.style.color = "var(--text-primary)";
+      } else {
+        candBertF1.textContent = "Not trained";
+        candBertRecall.textContent = "Not trained";
+        candBertF1.style.color = "var(--text-muted)";
+        candBertRecall.style.color = "var(--text-muted)";
+      }
+    } else {
+      candBox.style.display = "none";
+    }
   }
 }
 
