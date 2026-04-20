@@ -170,6 +170,22 @@
                   <strong id="sourceModel">-</strong>
                 </article>
               </div>
+
+              <div class="review-panel" id="reviewPanel">
+                <div>
+                  <span class="micro-label">Human review</span>
+                  <strong>Save this example for retraining</strong>
+                </div>
+                <div class="review-actions">
+                  <button type="button" class="ghost-button review-button" id="reviewToxicButton">
+                    Mark toxic
+                  </button>
+                  <button type="button" class="ghost-button review-button" id="reviewNonToxicButton">
+                    Mark non-toxic
+                  </button>
+                </div>
+                <p id="reviewStatus" class="review-status">Analyze a comment before saving a reviewed label.</p>
+              </div>
             </article>
           </div>
         </section>
@@ -199,6 +215,6 @@
       </main>
     </div>
 
-    <script src="/static/app.js?v=20260331-1"></script>
+    <script src="/static/app.js?v=20260418-2"></script>
   </body>
 </html>

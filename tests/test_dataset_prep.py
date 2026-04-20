@@ -210,3 +210,27 @@ class TestDeduplication:
         svc.dataset_files = [path]
         result = svc._load_full_dataset()
         assert len(result) == 2
+
+    def test_load_full_dataset_includes_reviewed_examples(self, tmp_path):
+        path = _csv(tmp_path, [{"texts": "base text", "category": "neu"}], "dataset1.csv")
+        reviewed_path = tmp_path / "models" / "reviewed" / "reviewed_comments.csv"
+        reviewed_path.parent.mkdir(parents=True)
+        pd.DataFrame(
+            [
+                {
+                    "request_id": "abc",
+                    "texts": "new toxic slang",
+                    "category": "neg",
+                    "source": "reviewed_traffic",
+                }
+            ]
+        ).to_csv(reviewed_path, index=False)
+
+        svc = _service(tmp_path)
+        svc.dataset_files = [path]
+        result = svc._load_full_dataset()
+
+        assert len(result) == 2
+        assert "reviewed_traffic" in result["source"].values
+        reviewed = result[result["source"] == "reviewed_traffic"].iloc[0]
+        assert reviewed["category"] == 1

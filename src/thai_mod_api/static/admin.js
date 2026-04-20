@@ -15,11 +15,27 @@ const monitoringPrimaryFeature = document.getElementById("monitoringPrimaryFeatu
 const monitoringRecentCount = document.getElementById("monitoringRecentCount");
 const monitoringWindowSize = document.getElementById("monitoringWindowSize");
 const monitoringReferenceInfo = document.getElementById("monitoringReferenceInfo");
-const monitoringMetricsGrid = document.getElementById("monitoringMetricsGrid");
-const monitoringLanguageMixGrid = document.getElementById("monitoringLanguageMixGrid");
+const monitoringDetailsGrid = document.getElementById("monitoringDetailsGrid");
 const monitoringGeneratedAt = document.getElementById("monitoringGeneratedAt");
+const monitoringLogPath = document.getElementById("monitoringLogPath");
+const monitoringLogCount = document.getElementById("monitoringLogCount");
+const monitoringEventsTable = document.getElementById("monitoringEventsTable");
 const refreshMonitoringButton = document.getElementById("refreshMonitoringButton");
 const clearMonitoringLogButton = document.getElementById("clearMonitoringLogButton");
+const trainLrCandidateButton = document.getElementById("trainLrCandidateButton");
+const promoteLrCandidateButton = document.getElementById("promoteLrCandidateButton");
+const trainCandidateButton = document.getElementById("trainCandidateButton");
+const promoteCandidateButton = document.getElementById("promoteCandidateButton");
+const refreshModelUpdateButton = document.getElementById("refreshModelUpdateButton");
+const modelUpdateStatus = document.getElementById("modelUpdateStatus");
+const modelUpdateKind = document.getElementById("modelUpdateKind");
+const modelUpdateStarted = document.getElementById("modelUpdateStarted");
+const modelUpdateFinished = document.getElementById("modelUpdateFinished");
+const modelUpdateReturnCode = document.getElementById("modelUpdateReturnCode");
+const modelUpdateLogPath = document.getElementById("modelUpdateLogPath");
+const modelUpdateMessage = document.getElementById("modelUpdateMessage");
+const reviewedExamplesCount = document.getElementById("reviewedExamplesCount");
+const reviewedExamplesPath = document.getElementById("reviewedExamplesPath");
 const confusionCells = {
   tn: document.querySelector("#cm-tn .confusion-cell-value"),
   fp: document.querySelector("#cm-fp .confusion-cell-value"),
@@ -186,6 +202,14 @@ function setMonitoringButtonsDisabled(disabled) {
   clearMonitoringLogButton.disabled = disabled;
 }
 
+function setModelUpdateButtonsDisabled(disabled) {
+  trainLrCandidateButton.disabled = disabled;
+  promoteLrCandidateButton.disabled = disabled;
+  trainCandidateButton.disabled = disabled;
+  promoteCandidateButton.disabled = disabled;
+  refreshModelUpdateButton.disabled = disabled;
+}
+
 function renderMonitoringSummary(report) {
   const windowInfo = report?.monitoring_window || {};
   const reference = report.reference_profile;
@@ -205,13 +229,11 @@ function renderMonitoringSummary(report) {
   setMonitoringTone(drift?.status === "collecting_data" ? "collecting_data" : drift?.status || "");
 
   if (!recent) {
-    monitoringMetricsGrid.innerHTML = `
+    monitoringDetailsGrid.innerHTML = `
       <div class="system-item">
         <span>Recent traffic</span>
         <strong>${report?.message || "No recent requests logged yet."}</strong>
       </div>
-    `;
-    monitoringLanguageMixGrid.innerHTML = `
       <div class="system-item">
         <span>Reference language mix</span>
         <strong>${formatLanguageMix(reference?.language_mix)}</strong>
@@ -220,7 +242,27 @@ function renderMonitoringSummary(report) {
     return;
   }
 
-  monitoringMetricsGrid.innerHTML = `
+  const referenceMix = reference.language_mix || {};
+  const recentMix = recent.language_mix || {};
+  const mixOrder = [
+    ["thai_only", "Thai only"],
+    ["english_only", "English only"],
+    ["mixed_script", "Mixed script"],
+    ["other", "Other"],
+  ];
+
+  const mixCards = mixOrder
+    .map(
+      ([key, label]) => `
+        <div class="system-item">
+          <span>${label}</span>
+          <strong>${formatPercent(referenceMix[key])} -> ${formatPercent(recentMix[key])}</strong>
+        </div>
+      `
+    )
+    .join("");
+
+  monitoringDetailsGrid.innerHTML = `
     <div class="system-item">
       <span>Toxic ratio</span>
       <strong>${formatPercent(reference.toxic_ratio)} -> ${formatPercent(recent.toxic_ratio)}</strong>
@@ -233,24 +275,38 @@ function renderMonitoringSummary(report) {
       <span>Average text length</span>
       <strong>${formatNumber(reference.average_text_length)} -> ${formatNumber(recent.average_text_length)} chars</strong>
     </div>
+    ${mixCards}
   `;
+}
 
-  const referenceMix = reference.language_mix || {};
-  const recentMix = recent.language_mix || {};
-  const mixOrder = [
-    ["thai_only", "Thai only"],
-    ["english_only", "English only"],
-    ["mixed_script", "Mixed script"],
-    ["other", "Other"],
-  ];
+function formatEventLabel(label) {
+  return String(label || "-").replaceAll("_", " ");
+}
 
-  monitoringLanguageMixGrid.innerHTML = mixOrder
+function renderMonitoringEvents(payload) {
+  const events = Array.isArray(payload?.events) ? payload.events : [];
+  monitoringLogPath.textContent = payload?.log_path || "models/monitoring_recent_requests.jsonl";
+  monitoringLogCount.textContent = `${Number(payload?.total_logged_requests || 0).toLocaleString()} total`;
+
+  if (events.length === 0) {
+    monitoringEventsTable.innerHTML = `
+      <tr>
+        <td colspan="5">No recent monitoring events yet.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  monitoringEventsTable.innerHTML = events
     .map(
-      ([key, label]) => `
-        <div class="system-item">
-          <span>${label}</span>
-          <strong>${formatPercent(referenceMix[key])} -> ${formatPercent(recentMix[key])}</strong>
-        </div>
+      (event) => `
+        <tr>
+          <td>${formatDateTime(event.timestamp)}</td>
+          <td>${formatEventLabel(event.language_bucket)}</td>
+          <td>${formatEventLabel(event.predicted_label)}</td>
+          <td>${formatNumber(event.toxicity_score, 4)}</td>
+          <td>${Number(event.text_length || 0).toLocaleString()}</td>
+        </tr>
       `
     )
     .join("");
@@ -304,18 +360,25 @@ async function loadAdminData() {
 
 async function loadMonitoringData() {
   try {
-    const response = await fetch("/api/monitoring");
+    const [summaryResponse, eventsResponse] = await Promise.all([
+      fetch("/api/monitoring"),
+      fetch("/api/monitoring/events?limit=10"),
+    ]);
 
-    if (!response.ok) {
-      if (response.status === 401) {
+    if (!summaryResponse.ok || !eventsResponse.ok) {
+      if (summaryResponse.status === 401 || eventsResponse.status === 401) {
         window.location.assign("/login?next=/admin");
         return;
       }
-      throw new Error("Unable to load monitoring summary");
+      throw new Error("Unable to load monitoring data");
     }
 
-    const report = await response.json();
+    const [report, events] = await Promise.all([
+      summaryResponse.json(),
+      eventsResponse.json(),
+    ]);
     renderMonitoringSummary(report);
+    renderMonitoringEvents(events);
   } catch (error) {
     renderMonitoringSummary({
       message: String(error),
@@ -324,6 +387,7 @@ async function loadMonitoringData() {
       monitoring_window: { prediction_count: 0, capacity: null, min_required: 20, full_confidence_required: 50 },
       drift_analysis: { status: "collecting_data", confidence: "collecting_data", psi: null },
     });
+    renderMonitoringEvents({ events: [], total_logged_requests: 0 });
   }
 }
 
@@ -338,6 +402,14 @@ async function refreshMonitoring() {
 }
 
 async function clearMonitoringLog() {
+  const confirmed = window.confirm(
+    "Clear recent monitoring logs? This resets the admin drift demo window, but it does not delete datasets or model artifacts."
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
   try {
     setMonitoringButtonsDisabled(true);
     monitoringGeneratedAt.textContent = "Clearing recent log...";
@@ -361,6 +433,155 @@ async function clearMonitoringLog() {
 
 refreshMonitoringButton.addEventListener("click", refreshMonitoring);
 clearMonitoringLogButton.addEventListener("click", clearMonitoringLog);
+
+function renderModelUpdateStatus(job) {
+  const status = job?.status || "idle";
+  modelUpdateStatus.textContent = status.toUpperCase();
+  modelUpdateStatus.dataset.status = status;
+  modelUpdateKind.textContent = job?.kind ? String(job.kind).replaceAll("-", " ") : "-";
+  modelUpdateStarted.textContent = formatDateTime(job?.started_at);
+  modelUpdateFinished.textContent = formatDateTime(job?.finished_at);
+  modelUpdateReturnCode.textContent = job?.returncode === null || job?.returncode === undefined
+    ? "-"
+    : String(job.returncode);
+  modelUpdateLogPath.textContent = job?.log_path || "-";
+
+  if (status === "running") {
+    modelUpdateMessage.textContent = "Script is running in the background. Refresh status to check progress.";
+    setModelUpdateButtonsDisabled(true);
+    refreshModelUpdateButton.disabled = false;
+  } else {
+    setModelUpdateButtonsDisabled(false);
+    if (status === "completed") {
+      modelUpdateMessage.textContent = "Script completed successfully. Restart the app after promotion to load a promoted model.";
+    } else if (status === "failed") {
+      modelUpdateMessage.textContent = "Script failed. Check the log file shown above.";
+    } else {
+      modelUpdateMessage.textContent = "Retraining is manual because new labels require moderator review.";
+    }
+  }
+
+  const candBox = document.getElementById("candidateMetricsContainer");
+  const candLrF1 = document.getElementById("candLrF1");
+  const candLrRecall = document.getElementById("candLrRecall");
+  const candBertF1 = document.getElementById("candBertF1");
+  const candBertRecall = document.getElementById("candBertRecall");
+  const candidates = job?.candidates || {};
+
+  if (candBox) {
+    if (Object.keys(candidates).length > 0) {
+      candBox.style.display = "flex";
+      
+      if (candidates.lr && candidates.lr.metrics) {
+        candLrF1.textContent = formatPercent(candidates.lr.metrics.f1_score);
+        candLrRecall.textContent = formatPercent(candidates.lr.metrics.recall);
+        candLrF1.style.color = "var(--text-primary)";
+        candLrRecall.style.color = "var(--text-primary)";
+      } else {
+        candLrF1.textContent = "Not trained";
+        candLrRecall.textContent = "Not trained";
+        candLrF1.style.color = "var(--text-muted)";
+        candLrRecall.style.color = "var(--text-muted)";
+      }
+      
+      if (candidates.bert && candidates.bert.metrics) {
+        candBertF1.textContent = formatPercent(candidates.bert.metrics.f1_score);
+        candBertRecall.textContent = formatPercent(candidates.bert.metrics.recall);
+        candBertF1.style.color = "var(--text-primary)";
+        candBertRecall.style.color = "var(--text-primary)";
+      } else {
+        candBertF1.textContent = "Not trained";
+        candBertRecall.textContent = "Not trained";
+        candBertF1.style.color = "var(--text-muted)";
+        candBertRecall.style.color = "var(--text-muted)";
+      }
+    } else {
+      candBox.style.display = "none";
+    }
+  }
+}
+
+async function loadModelUpdateStatus() {
+  try {
+    const [jobResponse, reviewedResponse] = await Promise.all([
+      fetch("/api/admin/model-update/status"),
+      fetch("/api/reviewed-examples/summary"),
+    ]);
+    if (!jobResponse.ok || !reviewedResponse.ok) {
+      if (jobResponse.status === 401 || reviewedResponse.status === 401) {
+        window.location.assign("/login?next=/admin");
+        return;
+      }
+      throw new Error("Unable to load model update status");
+    }
+    renderModelUpdateStatus(await jobResponse.json());
+    const reviewed = await reviewedResponse.json();
+    reviewedExamplesCount.textContent = Number(reviewed.reviewed_count || 0).toLocaleString();
+    reviewedExamplesPath.textContent = reviewed.path || "-";
+  } catch (error) {
+    renderModelUpdateStatus({ status: "failed" });
+    modelUpdateMessage.textContent = String(error);
+  }
+}
+
+async function startModelUpdateJob(endpoint, confirmationText) {
+  const confirmed = window.confirm(confirmationText);
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    setModelUpdateButtonsDisabled(true);
+    modelUpdateMessage.textContent = "Starting script...";
+    const response = await fetch(endpoint, { method: "POST" });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        window.location.assign("/login?next=/admin");
+        return;
+      }
+      if (response.status === 409) {
+        throw new Error("Another model update job is already running.");
+      }
+      throw new Error("Unable to start model update script");
+    }
+
+    renderModelUpdateStatus(await response.json());
+  } catch (error) {
+    modelUpdateMessage.textContent = String(error);
+    await loadModelUpdateStatus();
+  }
+}
+
+trainLrCandidateButton.addEventListener("click", () => {
+  startModelUpdateJob(
+    "/api/admin/model-update/train-lr-candidate",
+    "Start fast LR candidate retraining now? This is the recommended live demo path and will write models/candidates/lr_candidate/."
+  );
+});
+
+promoteLrCandidateButton.addEventListener("click", () => {
+  startModelUpdateJob(
+    "/api/admin/model-update/promote-lr-candidate",
+    "Promote the LR candidate if recall/F2 checks pass? This backs up and replaces the deployed LR cache artifact."
+  );
+});
+
+trainCandidateButton.addEventListener("click", () => {
+  startModelUpdateJob(
+    "/api/admin/model-update/train-candidate",
+    "Start WangchanBERTa candidate retraining now? This can take a long time and is better for offline/GPU runs."
+  );
+});
+
+promoteCandidateButton.addEventListener("click", () => {
+  startModelUpdateJob(
+    "/api/admin/model-update/promote-candidate",
+    "Promote the candidate model if recall/F2 checks pass? This backs up and replaces the deployed artifact."
+  );
+});
+
+refreshModelUpdateButton.addEventListener("click", loadModelUpdateStatus);
 
 async function loadSession() {
   try {
@@ -397,5 +618,6 @@ loadSession().then((ok) => {
   if (ok) {
     loadAdminData();
     loadMonitoringData();
+    loadModelUpdateStatus();
   }
 });

@@ -104,6 +104,7 @@ def _prediction(
     score: float = 0.2,
 ) -> PredictionResult:
     return PredictionResult(
+        request_id="test-request-id",
         text=text,
         processed_text=processed_text or text.lower(),
         predicted_label=label,
@@ -233,6 +234,20 @@ class TestRecentRequestMonitor:
         assert monitor.total_logged_requests() == 2
         assert monitor.clear() == 2
         assert monitor.total_logged_requests() == 0
+
+    def test_recent_events_returns_newest_first_without_raw_text(self, tmp_path):
+        monitor = RecentRequestMonitor(tmp_path)
+        monitor.record_prediction(_prediction("hello"))
+        monitor.record_prediction(_prediction("สวัสดี", label="toxic", score=0.9))
+
+        payload = monitor.recent_events(limit=1)
+
+        assert payload["log_path"] == "models/monitoring_recent_requests.jsonl"
+        assert payload["total_logged_requests"] == 2
+        assert payload["returned_count"] == 1
+        assert payload["events"][0]["language_bucket"] == "thai_only"
+        assert payload["events"][0]["predicted_label"] == "toxic"
+        assert "text" not in payload["events"][0]
 
     def test_ensure_reference_profile_loads_json_profile(self, tmp_path):
         _write_reference_profile(tmp_path, _profile_payload(profile_name="json_profile"))

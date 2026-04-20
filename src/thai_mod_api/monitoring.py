@@ -356,6 +356,7 @@ class RecentRequestMonitor:
     def _build_event(self, result: PredictionResult) -> dict[str, Any]:
         profile = _text_character_profile(result.text)
         return {
+            "request_id": result.request_id,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "text_length": len(result.text),
             "english_char_ratio": round(float(profile["english_char_ratio"]), 4),
@@ -404,6 +405,16 @@ class RecentRequestMonitor:
         with self._lock:
             with open(self.log_path, "r", encoding="utf-8") as file:
                 return sum(1 for line in file if line.strip())
+
+    def recent_events(self, limit: int = 20) -> dict[str, Any]:
+        safe_limit = min(max(int(limit), 1), self.recent_window_size)
+        events = self._load_recent_events()
+        return {
+            "log_path": str(self.log_path.relative_to(self.project_root)),
+            "total_logged_requests": self.total_logged_requests(),
+            "returned_count": min(len(events), safe_limit),
+            "events": list(reversed(events[-safe_limit:])),
+        }
 
     def _monitoring_phase(self, request_count: int) -> str:
         if request_count < self.min_recent_requests:

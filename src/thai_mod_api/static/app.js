@@ -16,6 +16,9 @@ const toxicScore = document.getElementById("toxicScore");
 const confidence = document.getElementById("confidence");
 const resultThreshold = document.getElementById("resultThreshold");
 const sourceModel = document.getElementById("sourceModel");
+const reviewToxicButton = document.getElementById("reviewToxicButton");
+const reviewNonToxicButton = document.getElementById("reviewNonToxicButton");
+const reviewStatus = document.getElementById("reviewStatus");
 const riskPercent = document.getElementById("riskPercent");
 const confidencePercent = document.getElementById("confidencePercent");
 const riskBar = document.getElementById("riskBar");
@@ -25,6 +28,7 @@ const modelVersion = document.getElementById("modelVersion");
 const healthStatus = document.getElementById("healthStatus");
 
 const recentHistory = [];
+let currentPrediction = null;
 
 async function ensureAnalyzerAccess() {
   try {
@@ -69,6 +73,7 @@ function trimText(text, maxLength = 120) {
 
 function setPrediction(result) {
   const riskClass = getRiskClass(result.predicted_label);
+  currentPrediction = result;
 
   predictedLabel.textContent = result.predicted_label;
   recommendation.textContent = result.recommendation;
@@ -85,6 +90,7 @@ function setPrediction(result) {
   resultAccent.className = `result-accent ${riskClass}`;
   actionTag.className = `result-action ${riskClass}`;
   actionTag.textContent = getActionLabel(result);
+  reviewStatus.textContent = `Ready to save human label for request ${result.request_id.slice(0, 8)}.`;
 }
 
 function renderHistory() {
@@ -151,6 +157,8 @@ async function analyzeComment() {
   processingLabel.textContent = "Deconstructing semantic tokens...";
 
   recommendation.textContent = "RUNNING_ANALYSIS";
+  currentPrediction = null;
+  reviewStatus.textContent = "Analyze a comment before saving a reviewed label.";
   predictedLabel.textContent = "pending";
   toxicScore.textContent = "-";
   confidence.textContent = "-";
@@ -208,8 +216,56 @@ async function analyzeComment() {
   }
 }
 
+function setReviewButtonsDisabled(disabled) {
+  reviewToxicButton.disabled = disabled;
+  reviewNonToxicButton.disabled = disabled;
+}
+
+async function submitReviewedLabel(reviewedLabel) {
+  if (!currentPrediction) {
+    reviewStatus.textContent = "Analyze a comment before saving a reviewed label.";
+    return;
+  }
+
+  try {
+    setReviewButtonsDisabled(true);
+    reviewStatus.textContent = "Saving reviewed example...";
+    const response = await fetch("/api/reviewed-examples", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        request_id: currentPrediction.request_id,
+        text: currentPrediction.text,
+        reviewed_label: reviewedLabel,
+        predicted_label: currentPrediction.predicted_label,
+        toxicity_score: currentPrediction.toxic_score,
+        source_model: currentPrediction.source_model,
+      }),
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        reviewStatus.textContent = "Login required before saving reviewed examples.";
+        return;
+      }
+      throw new Error(`Save failed with status ${response.status}`);
+    }
+
+    const payload = await response.json();
+    reviewStatus.textContent = `Saved. Reviewed examples: ${Number(payload.reviewed_count).toLocaleString()}.`;
+  } catch (error) {
+    reviewStatus.textContent = String(error);
+  } finally {
+    setReviewButtonsDisabled(false);
+  }
+}
+
 thresholdInput.addEventListener("input", setThresholdLabel);
 analyzeButton.addEventListener("click", analyzeComment);
+reviewToxicButton.addEventListener("click", () => submitReviewedLabel("neg"));
+reviewNonToxicButton.addEventListener("click", () => submitReviewedLabel("neu"));
 
 document.querySelectorAll(".sample-button").forEach((button) => {
   button.addEventListener("click", () => {

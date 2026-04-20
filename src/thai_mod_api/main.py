@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+import json
 import os
+import subprocess
+import sys
+import csv
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
@@ -21,6 +27,8 @@ from .schemas import (
     LoginRequest,
     PredictRequest,
     PredictionResponse,
+    ReviewedExampleRequest,
+    ReviewedExampleResponse,
 )
 
 
@@ -29,6 +37,30 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 model_service = ToxicityModelService(PROJECT_ROOT)
 monitoring_service = MonitoringService(PROJECT_ROOT, model_service.get_monitoring_baseline)
 request_monitor = RecentRequestMonitor(PROJECT_ROOT)
+MODEL_UPDATE_LOG_DIR = PROJECT_ROOT / "models" / "model_update_jobs"
+MODEL_UPDATE_LOG_DIR.mkdir(parents=True, exist_ok=True)
+REVIEWED_EXAMPLES_PATH = PROJECT_ROOT / "models" / "reviewed" / "reviewed_comments.csv"
+REVIEWED_EXAMPLES_FIELDS = [
+    "request_id",
+    "texts",
+    "category",
+    "source",
+    "predicted_label",
+    "toxicity_score",
+    "source_model",
+    "reviewed_at",
+]
+reviewed_examples_lock = Lock()
+model_update_process: subprocess.Popen | None = None
+model_update_job: dict[str, Any] = {
+    "status": "idle",
+    "kind": None,
+    "started_at": None,
+    "finished_at": None,
+    "returncode": None,
+    "log_path": None,
+    "command": None,
+}
 
 
 def _load_dotenv(dotenv_path: Path) -> None:
@@ -98,6 +130,127 @@ def _record_prediction(result: PredictionResult) -> None:
         request_monitor.record_prediction(result)
     except OSError:
         pass
+
+
+def _script_command(kind: str) -> list[str]:
+    if kind == "train-bert-candidate":
+        return [
+            sys.executable,
+            str(PROJECT_ROOT / "scripts" / "train_wangchanberta.py"),
+            "--candidate",
+            "--force",
+        ]
+    if kind == "promote-bert-candidate":
+        return [
+            sys.executable,
+            str(PROJECT_ROOT / "scripts" / "promote_wangchanberta_candidate.py"),
+        ]
+    if kind == "train-lr-candidate":
+        return [
+            sys.executable,
+            str(PROJECT_ROOT / "scripts" / "train_lr_candidate.py"),
+            "--force",
+        ]
+    if kind == "promote-lr-candidate":
+        return [
+            sys.executable,
+            str(PROJECT_ROOT / "scripts" / "promote_lr_candidate.py"),
+        ]
+    raise ValueError(f"Unknown model update job kind: {kind}")
+
+
+def _refresh_model_update_job() -> dict[str, Any]:
+    global model_update_process
+
+    if model_update_process is not None:
+        returncode = model_update_process.poll()
+        if returncode is not None:
+            model_update_job["returncode"] = returncode
+            model_update_job["finished_at"] = datetime.now(timezone.utc).isoformat()
+            model_update_job["status"] = "completed" if returncode == 0 else "failed"
+            model_update_process = None
+
+    return model_update_job
+
+
+def _start_model_update_job(kind: str) -> dict[str, Any]:
+    global model_update_process
+
+    current = _refresh_model_update_job()
+    if current["status"] == "running":
+        raise HTTPException(status_code=409, detail="A model update job is already running")
+
+    command = _script_command(kind)
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    log_path = MODEL_UPDATE_LOG_DIR / f"{kind}_{timestamp}.log"
+
+    with open(log_path, "w", encoding="utf-8") as log_file:
+        model_update_process = subprocess.Popen(
+            command,
+            cwd=PROJECT_ROOT,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+
+    model_update_job.update(
+        {
+            "status": "running",
+            "kind": kind,
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "finished_at": None,
+            "returncode": None,
+            "log_path": str(log_path.relative_to(PROJECT_ROOT)),
+            "command": " ".join(command),
+            "pid": model_update_process.pid,
+        }
+    )
+    return model_update_job
+
+
+def _reviewed_examples_count() -> int:
+    if not REVIEWED_EXAMPLES_PATH.exists():
+        return 0
+
+    with reviewed_examples_lock:
+        with open(REVIEWED_EXAMPLES_PATH, "r", encoding="utf-8") as file:
+            reader = csv.DictReader(file)
+            return sum(1 for _row in reader)
+
+
+def _project_display_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(PROJECT_ROOT))
+    except ValueError:
+        return str(path)
+
+
+def _append_reviewed_example(payload: ReviewedExampleRequest) -> dict[str, Any]:
+    REVIEWED_EXAMPLES_PATH.parent.mkdir(parents=True, exist_ok=True)
+    row = {
+        "request_id": payload.request_id,
+        "texts": payload.text,
+        "category": payload.reviewed_label,
+        "source": "reviewed_traffic",
+        "predicted_label": payload.predicted_label or "",
+        "toxicity_score": "" if payload.toxicity_score is None else payload.toxicity_score,
+        "source_model": payload.source_model or "",
+        "reviewed_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    with reviewed_examples_lock:
+        write_header = not REVIEWED_EXAMPLES_PATH.exists() or REVIEWED_EXAMPLES_PATH.stat().st_size == 0
+        with open(REVIEWED_EXAMPLES_PATH, "a", newline="", encoding="utf-8") as file:
+            writer = csv.DictWriter(file, fieldnames=REVIEWED_EXAMPLES_FIELDS)
+            if write_header:
+                writer.writeheader()
+            writer.writerow(row)
+
+    return {
+        "status": "saved",
+        "reviewed_count": _reviewed_examples_count(),
+        "path": _project_display_path(REVIEWED_EXAMPLES_PATH),
+    }
 
 
 @asynccontextmanager
@@ -205,6 +358,12 @@ async def monitoring_summary(request: Request):
     return request_monitor.build_monitoring_summary(model_service)
 
 
+@app.get("/api/monitoring/events")
+async def monitoring_events(request: Request, limit: int = 20):
+    _require_api_auth(request)
+    return request_monitor.recent_events(limit)
+
+
 @app.post("/api/monitoring/reset")
 async def reset_monitoring_window(request: Request):
     _require_api_auth(request)
@@ -224,6 +383,71 @@ async def monitoring_log_summary():
 @app.get("/api/monitoring/drift")
 async def monitoring_drift():
     return monitoring_service.get_drift_report()
+
+
+@app.get("/api/admin/model-update/status")
+async def model_update_status(request: Request):
+    _require_api_auth(request)
+    job = _refresh_model_update_job().copy()
+    
+    candidates = {}
+    for kind, path, filename in [
+        ("lr", "lr_candidate", "thai_mod_baseline.metadata.json"),
+        ("bert", "wangchanberta_candidate", "metadata.json"),
+    ]:
+        meta_path = PROJECT_ROOT / "models" / "candidates" / path / filename
+        if meta_path.exists():
+            try:
+                with open(meta_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    candidates[kind] = {
+                        "trained_at": data.get("trained_at"),
+                        "metrics": data.get("metrics"),
+                    }
+            except Exception:
+                pass
+                
+    job["candidates"] = candidates
+    return job
+
+
+@app.post("/api/admin/model-update/train-candidate")
+async def train_model_candidate(request: Request):
+    _require_api_auth(request)
+    return _start_model_update_job("train-bert-candidate")
+
+
+@app.post("/api/admin/model-update/promote-candidate")
+async def promote_model_candidate(request: Request):
+    _require_api_auth(request)
+    return _start_model_update_job("promote-bert-candidate")
+
+
+@app.post("/api/admin/model-update/train-lr-candidate")
+async def train_lr_model_candidate(request: Request):
+    _require_api_auth(request)
+    return _start_model_update_job("train-lr-candidate")
+
+
+@app.post("/api/admin/model-update/promote-lr-candidate")
+async def promote_lr_model_candidate(request: Request):
+    _require_api_auth(request)
+    return _start_model_update_job("promote-lr-candidate")
+
+
+@app.get("/api/reviewed-examples/summary")
+async def reviewed_examples_summary(request: Request):
+    _require_api_auth(request)
+    return {
+        "path": _project_display_path(REVIEWED_EXAMPLES_PATH),
+        "reviewed_count": _reviewed_examples_count(),
+    }
+
+
+@app.post("/api/reviewed-examples", response_model=ReviewedExampleResponse)
+async def save_reviewed_example(payload: ReviewedExampleRequest, request: Request):
+    _require_api_auth(request)
+    return _append_reviewed_example(payload)
 
 
 @app.post("/api/predict", response_model=PredictionResponse)

@@ -69,6 +69,10 @@ def api_client(tmp_path_factory: pytest.TempPathFactory) -> TestClient:
     monitoring_dir = tmp_path_factory.mktemp("monitoring")
     main_module.monitoring_service.monitoring_dir = monitoring_dir
     main_module.monitoring_service.log_path = monitoring_dir / "prediction_logs.jsonl"
+    main_module.request_monitor.project_root = monitoring_dir
+    main_module.request_monitor.log_path = monitoring_dir / "monitoring_recent_requests.jsonl"
+    main_module.request_monitor.log_path.write_text("", encoding="utf-8")
+    main_module.REVIEWED_EXAMPLES_PATH = monitoring_dir / "reviewed_comments.csv"
 
     with TestClient(main_module.app) as client:
         yield client

@@ -204,7 +204,8 @@ The system remains human-in-the-loop. Drift changes review priority, not the fin
 
 ## Retraining and update policy
 
-Retraining remains a documented workflow, not something inferred from unlabeled traffic.
+Retraining remains a human-reviewed workflow, not something inferred from unlabeled traffic.
+The runnable train-candidate-promote pipeline is documented in `docs/model-update-pipeline.md`.
 
 The workflow is:
 
@@ -234,6 +235,7 @@ The admin monitoring panel now shows only the monitoring signals:
 - supporting metrics
 - refresh button
 - clear recent log button
+- recent privacy-safe event rows from the JSONL monitoring log
 
 The admin page no longer shows a recommended-action block. The operational policy is documented here instead.
 
@@ -249,6 +251,18 @@ The admin page no longer shows a recommended-action block. The operational polic
 8. Show that the recent language mix and PSI changed.
 
 For a faster demo setup, the presenter can also use `POST /api/batch-predict` with several comments in one request. Those predictions still go through the same real app path and are included in the recent-request log.
+
+The admin page also shows the latest monitoring event rows from:
+
+- `GET /api/monitoring/events`
+
+These rows expose only metadata such as timestamp, language bucket, predicted label, toxicity score, and text length. They do not expose raw comment text.
+
+When a moderator wants to use a specific comment for retraining, they do that through the human-review controls in the analyzer page. That action saves the raw text and moderator label to:
+
+- `models/reviewed/reviewed_comments.csv`
+
+This keeps automatic monitoring privacy-safe while still giving retraining a reviewed, human-labeled data source.
 
 ## Limitations
 

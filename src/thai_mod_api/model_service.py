@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import tempfile
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -41,6 +42,7 @@ TOXIC_KEYWORD_MAX_CHARS = 20
 
 @dataclass
 class PredictionResult:
+    request_id: str
     text: str
     processed_text: str
     predicted_label: str
@@ -59,6 +61,7 @@ class ToxicityModelService:
         self.model_backend = self._load_model_backend()
         self.logger = logging.getLogger("uvicorn.error")
         self.dataset_files = [project_root / "datasets" / f"dataset{i}.csv" for i in range(1, 9)]
+        self.reviewed_dataset_path = project_root / "models" / "reviewed" / "reviewed_comments.csv"
         self.model_dir = project_root / "models"
         self.model_dir.mkdir(exist_ok=True)
         self.transformer_dir = self.model_dir / "wangchanberta_finetuned"
@@ -399,6 +402,9 @@ class ToxicityModelService:
 
     def _load_full_dataset(self) -> pd.DataFrame:
         frames = [self._prepare_dataset(path) for path in self.dataset_files]
+        reviewed_frame = self._load_reviewed_dataset()
+        if not reviewed_frame.empty:
+            frames.append(reviewed_frame)
         combined = pd.concat(frames, ignore_index=True)
         combined = combined.drop_duplicates(subset=["texts"], keep="first").reset_index(drop=True)
         return combined
@@ -415,6 +421,29 @@ class ToxicityModelService:
         df = df.dropna(subset=["category"]).copy()
         df["category"] = df["category"].astype(int)
         df["source"] = dataset_file.name
+        return df[["texts", "category", "source"]]
+
+    def _load_reviewed_dataset(self) -> pd.DataFrame:
+        if not self.reviewed_dataset_path.exists():
+            return pd.DataFrame(columns=["texts", "category", "source"])
+
+        df = pd.read_csv(self.reviewed_dataset_path).copy()
+        if "texts" not in df.columns or "category" not in df.columns:
+            return pd.DataFrame(columns=["texts", "category", "source"])
+
+        df = df.dropna(subset=["category", "texts"])
+        if df.empty:
+            return pd.DataFrame(columns=["texts", "category", "source"])
+
+        df["texts"] = df["texts"].apply(self.preprocess_text)
+        df = df[df["texts"].str.strip() != ""].copy()
+        df["category"] = df["category"].replace({"pos": "neu"})
+        df["category"] = df["category"].map({"neg": 1, "neu": 0})
+        df = df.dropna(subset=["category"]).copy()
+        df["category"] = df["category"].astype(int)
+        if "source" not in df.columns:
+            df["source"] = "reviewed_traffic"
+        df["source"] = df["source"].fillna("reviewed_traffic").astype(str)
         return df[["texts", "category", "source"]]
 
     @staticmethod
@@ -544,6 +573,7 @@ class ToxicityModelService:
         confidence = toxic_score if predicted_toxic else 1.0 - toxic_score
 
         return PredictionResult(
+            request_id=str(uuid.uuid4()),
             text=text,
             processed_text=processed_text,
             predicted_label="toxic" if predicted_toxic else "non-toxic",
