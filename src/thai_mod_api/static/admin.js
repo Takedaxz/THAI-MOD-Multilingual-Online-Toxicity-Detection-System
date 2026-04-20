@@ -454,9 +454,33 @@ function renderModelUpdateStatus(job) {
     setModelUpdateButtonsDisabled(false);
     if (status === "completed") {
       modelUpdateMessage.textContent = "Script completed successfully. Restart the app after promotion to load a promoted model.";
+      modelUpdateMessage.style.color = "var(--success, #53d6a0)";
     } else if (status === "failed") {
-      modelUpdateMessage.textContent = "Script failed. Check the log file shown above.";
+      if (job?.promotion_rejected) {
+        // Safety guard blocked — show friendly message with metric details
+        const details = job.promotion_details || {};
+        const checks = details.checks || {};
+        let checkLines = "";
+        for (const [metric, result] of Object.entries(checks)) {
+          const label = metric.replace(/_/g, " ");
+          const curr = result.current !== undefined ? (result.current * 100).toFixed(2) + "%" : "?";
+          const cand = result.candidate !== undefined ? (result.candidate * 100).toFixed(2) + "%" : "?";
+          const icon = result.passes ? "✅" : "❌";
+          checkLines += `  ${icon} ${label}: current ${curr} → candidate ${cand}\n`;
+        }
+        modelUpdateMessage.style.whiteSpace = "pre-wrap";
+        modelUpdateMessage.style.color = "var(--warning, #ffaa00)";
+        modelUpdateMessage.textContent =
+          `⚠️ Promotion blocked — candidate did not improve on all safety metrics.\n` +
+          (details.reason ? details.reason + "\n\n" : "") +
+          checkLines +
+          `\nYou can still force-promote via the API if you judge this acceptable.`;
+      } else {
+        modelUpdateMessage.style.color = "var(--error, #ff7b86)";
+        modelUpdateMessage.textContent = "Script failed. Check the log file shown above.";
+      }
     } else {
+      modelUpdateMessage.style.color = "";
       modelUpdateMessage.textContent = "Retraining is manual because new labels require moderator review.";
     }
   }
@@ -473,7 +497,7 @@ function renderModelUpdateStatus(job) {
       candBox.style.display = "flex";
       
       if (candidates.lr && candidates.lr.metrics) {
-        candLrF1.textContent = formatPercent(candidates.lr.metrics.f1_score);
+        candLrF1.textContent = formatPercent(candidates.lr.metrics.f2_score);
         candLrRecall.textContent = formatPercent(candidates.lr.metrics.recall);
         candLrF1.style.color = "var(--text-primary)";
         candLrRecall.style.color = "var(--text-primary)";
@@ -485,7 +509,7 @@ function renderModelUpdateStatus(job) {
       }
       
       if (candidates.bert && candidates.bert.metrics) {
-        candBertF1.textContent = formatPercent(candidates.bert.metrics.f1_score);
+        candBertF1.textContent = formatPercent(candidates.bert.metrics.f2_score);
         candBertRecall.textContent = formatPercent(candidates.bert.metrics.recall);
         candBertF1.style.color = "var(--text-primary)";
         candBertRecall.style.color = "var(--text-primary)";

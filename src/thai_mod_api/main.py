@@ -170,6 +170,23 @@ def _refresh_model_update_job() -> dict[str, Any]:
             model_update_job["status"] = "completed" if returncode == 0 else "failed"
             model_update_process = None
 
+            # If failed, check whether it was a metric-check rejection (not a crash)
+            if returncode != 0:
+                log_rel = model_update_job.get("log_path")
+                if log_rel:
+                    log_path = PROJECT_ROOT / log_rel
+                    try:
+                        with open(log_path, "r", encoding="utf-8") as lf:
+                            log_data = json.load(lf)
+                        if log_data.get("promoted") is False and log_data.get("reason"):
+                            model_update_job["promotion_rejected"] = True
+                            model_update_job["promotion_details"] = {
+                                "reason": log_data["reason"],
+                                "checks": log_data.get("checks", {}),
+                            }
+                    except Exception:
+                        model_update_job.setdefault("promotion_rejected", False)
+
     return model_update_job
 
 
@@ -389,6 +406,21 @@ async def monitoring_drift():
 async def model_update_status(request: Request):
     _require_api_auth(request)
     job = _refresh_model_update_job().copy()
+    
+    # Ensure promotion_rejected is correctly set even after server reload
+    if job.get("status") == "failed" and job.get("log_path") and not job.get("promotion_rejected"):
+        log_path = PROJECT_ROOT / job["log_path"]
+        try:
+            with open(log_path, "r", encoding="utf-8") as lf:
+                log_data = json.load(lf)
+            if log_data.get("promoted") is False and log_data.get("reason"):
+                job["promotion_rejected"] = True
+                job["promotion_details"] = {
+                    "reason": log_data["reason"],
+                    "checks": log_data.get("checks", {}),
+                }
+        except Exception:
+            pass
     
     candidates = {}
     for kind, path, filename in [
